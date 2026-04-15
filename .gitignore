@@ -1,4 +1,4 @@
 output/
 .venv/
 __pycache__/
-aurora_data.egg-info/
+rcd_data.egg-info/

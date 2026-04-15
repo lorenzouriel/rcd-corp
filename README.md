@@ -1,10 +1,10 @@
-# Aurora Corp Synthetic Data Generator
+# RCD Corp Synthetic Data Generator
 
-Modular, reproducible Python CLI that generates realistic, interconnected synthetic operational data for **Aurora Corp** — a fictional mid-to-large enterprise — across **10 business domains**, writing to **CSV**, **Parquet**, and **Postgres**.
+Modular, reproducible Python CLI that generates realistic, interconnected synthetic operational data for **RCD Corp** — a fictional mid-to-large enterprise — across **10 business domains**, writing to **CSV**, **Parquet**, and **Postgres**.
 
 ```
-Aurora Corp — founded 2008, HQ São Paulo (BR), offices in Mexico City, Lisbon, Miami
-~4,200 employees · ~$1.2B annual revenue · Ticker: AURC
+RCD Corp — founded 2008, HQ São Paulo (BR), offices in Mexico City, Lisbon, Miami
+~4,200 employees · ~$1.2B annual revenue · Ticker: RCDC
 ```
 
 ---
@@ -16,19 +16,19 @@ Aurora Corp — founded 2008, HQ São Paulo (BR), offices in Mexico City, Lisbon
 pip install -e .
 
 # Generate demo data (~10k rows/fact table) → Parquet
-aurora-data generate --profile demo --seed 42 --sink parquet
+rcd-data generate --profile demo --seed 42 --sink parquet
 
 # Generate standard data (~1M orders) → all sinks
-aurora-data generate --profile standard --sink all
+rcd-data generate --profile standard --sink all
 
 # Generate only social media and support domains
-aurora-data generate --profile demo --only social_media,support --sink csv
+rcd-data generate --profile demo --only social_media,support --sink csv
 
 # Validate referential integrity
-AURORA_OUTPUT_DIR=./output aurora-data validate
+RCD_OUTPUT_DIR=./output rcd-data validate
 
 # Show profile sizes
-aurora-data info
+rcd-data info
 ```
 
 ---
@@ -50,8 +50,8 @@ pip install -e .
 
 ```bash
 docker compose up -d postgres
-export AURORA_POSTGRES_URL="postgresql+psycopg2://aurora:aurora@localhost:5432/aurora_corp"
-aurora-data generate --profile demo --sink all
+export RCD_POSTGRES_URL="postgresql+psycopg2://rcd:rcd@localhost:5432/rcd_corp"
+rcd-data generate --profile demo --sink all
 ```
 
 ### Docker (full end-to-end)
@@ -65,9 +65,9 @@ docker compose --profile run up --build
 ## CLI Reference
 
 ```
-aurora-data generate [OPTIONS]
-aurora-data validate [OPTIONS]
-aurora-data info [OPTIONS]
+rcd-data generate [OPTIONS]
+rcd-data validate [OPTIONS]
+rcd-data info [OPTIONS]
 ```
 
 ### `generate` options
@@ -137,7 +137,7 @@ output/
 | Table | Key Columns | Description |
 |-------|-------------|-------------|
 | `customers` | `id`, `segment`, `country`, `ltv_tier`, `cpf_or_cnpj` | 75% B2C, 20% B2B, 5% VIP; Pareto LTV |
-| `products` | `sku`, `brand`, `category`, `price`, `currency` | 9 Aurora branded + up to 200 third-party SKUs |
+| `products` | `sku`, `brand`, `category`, `price`, `currency` | 9 RCD branded + up to 200 third-party SKUs |
 | `employees` | `id`, `department`, `level`, `salary`, `manager_id` | 7-level IC hierarchy + 5-level management |
 | `suppliers` | `id`, `country`, `rating`, `lead_time_days` | |
 | `stores` | `id`, `type`, `country`, `city` | flagship/standard/outlet/pop_up/online/warehouse |
@@ -150,7 +150,7 @@ output/
 |-------|-------------|-------------|
 | `orders` | `id`, `customer_id`, `store_id`, `status`, `total`, `currency` | State machine: pending→paid→shipped→delivered |
 | `order_items` | `order_id`, `product_id`, `quantity`, `line_total` | FK: orders + products |
-| `payments` | `order_id`, `method`, `gateway`, `processing_fee` | pix/credit_card/boleto/aurora_card/bnpl |
+| `payments` | `order_id`, `method`, `gateway`, `processing_fee` | pix/credit_card/boleto/rcd_card/bnpl |
 | `web_sessions` | `session_id`, `customer_id`, `device`, `utm_source` | 30% anonymous sessions |
 | `shopping_cart_events` | `session_id`, `product_id`, `event_type` | view/add/remove/checkout/purchase |
 
@@ -162,7 +162,7 @@ output/
 | `transactions` | `type`, `amount`, `currency`, `status` |
 | `expenses` | `employee_id`, `category`, `amount`, `department` |
 | `budgets` | `department`, `year`, `quarter`, `planned_amount`, `actual_amount` |
-| `aurora_card_transactions` | `card_id`, `customer_id`, `merchant_category`, `amount` |
+| `rcd_card_transactions` | `card_id`, `customer_id`, `merchant_category`, `amount` |
 
 ### Marketing
 
@@ -253,7 +253,7 @@ output/
 | OEE (Overall Equipment Effectiveness) | `production_runs`, `machine_telemetry`, `maintenance_events`, `quality_checks` |
 | Support CSAT & SLA | `tickets`, `ticket_messages`, `call_center_calls` |
 | HR Headcount / Attrition | `employees`, `attendance`, `performance_reviews`, `recruitment_pipeline` |
-| Financial P&L | `invoices`, `transactions`, `expenses`, `budgets`, `aurora_card_transactions` |
+| Financial P&L | `invoices`, `transactions`, `expenses`, `budgets`, `rcd_card_transactions` |
 | Executive 360 | All of the above |
 
 ---
@@ -278,8 +278,8 @@ output/
 Same seed → identical output:
 
 ```bash
-aurora-data generate --profile demo --seed 42 --sink csv
-aurora-data generate --profile demo --seed 42 --sink csv  # byte-identical
+rcd-data generate --profile demo --seed 42 --sink csv
+rcd-data generate --profile demo --seed 42 --sink csv  # byte-identical
 ```
 
 All RNG sources are seeded at startup: `random.seed(N)`, `np.random.seed(N)`, `Faker.seed(N)`.
@@ -288,7 +288,7 @@ All RNG sources are seeded at startup: `random.seed(N)`, `np.random.seed(N)`, `F
 
 ## Tuning Guide
 
-Edit `aurora_data/config.yaml` to tune output volumes without code changes.
+Edit `rcd_data/config.yaml` to tune output volumes without code changes.
 
 | Knob | Where | Effect |
 |------|-------|--------|
@@ -321,7 +321,7 @@ profiles:
 ```
 
 ```bash
-aurora-data generate --profile my_profile --sink parquet
+rcd-data generate --profile my_profile --sink parquet
 ```
 
 ---
@@ -329,14 +329,14 @@ aurora-data generate --profile my_profile --sink parquet
 ## Project Structure
 
 ```
-aurora_data/
+rcd_data/
 ├── config.yaml              # Volume profiles and company config
 ├── main.py                  # CLI entry point (typer)
 ├── generators/
 │   ├── base.py              # BaseGenerator, MasterCache, ProfileConfig, SinkDispatcher
 │   ├── master_data.py       # customers, products, employees, suppliers, stores, warehouses, fx_rates
 │   ├── sales.py             # orders, order_items, payments, web_sessions, cart_events
-│   ├── finance.py           # invoices, transactions, expenses, budgets, aurora_card
+│   ├── finance.py           # invoices, transactions, expenses, budgets, rcd_card
 │   ├── marketing.py         # campaigns, events, email, leads, ab_tests
 │   ├── social_media.py      # 11 social tables
 │   ├── supply_chain.py      # shipments, inventory, POs, movements, returns

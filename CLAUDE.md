@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-**Aurora Corp Synthetic Data Generator** — a CLI tool that produces reproducible, realistic synthetic operational data for a fictional mid-to-large enterprise. Outputs 40+ interconnected tables across 10 business domains (sales, finance, marketing, social media, supply chain, manufacturing, HR, support, observability) to CSV, Parquet, and/or PostgreSQL.
+**RCD Corp Synthetic Data Generator** — a CLI tool that produces reproducible, realistic synthetic operational data for a fictional mid-to-large enterprise. Outputs 40+ interconnected tables across 10 business domains (sales, finance, marketing, social media, supply chain, manufacturing, HR, support, observability) to CSV, Parquet, and/or PostgreSQL.
 
 ## Commands
 
@@ -13,25 +13,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pip install -e .
 
 # Generate data
-aurora-data generate --profile demo --seed 42 --sink parquet
-aurora-data generate --profile demo --seed 42 --sink csv
-aurora-data generate --profile standard --seed 42 --sink all
-aurora-data generate --profile demo --only sales,finance  # single domain
+rcd-data generate --profile demo --seed 42 --sink parquet
+rcd-data generate --profile demo --seed 42 --sink csv
+rcd-data generate --profile standard --seed 42 --sink all
+rcd-data generate --profile demo --only sales,finance  # single domain
 
 # Validate referential integrity
-aurora-data validate --output ./output --format parquet
-pytest aurora_data/tests/test_referential_integrity.py -v  # same checks
+rcd-data validate --output ./output --format parquet
+pytest rcd_data/tests/test_referential_integrity.py -v  # same checks
 
 # Show profile info
-aurora-data info
+rcd-data info
 
 # Lint
-ruff check aurora_data/
+ruff check rcd_data/
 ```
 
 **Profiles:** `demo` (~200k rows, 30 days), `standard` (~15M rows, 90 days), `loadtest` (~200M+ rows, 730 days).
 
-**Sinks:** `csv`, `parquet`, `postgres`, `all`. PostgreSQL requires `AURORA_POSTGRES_URL` env var.
+**Sinks:** `csv`, `parquet`, `postgres`, `all`. PostgreSQL requires `RCD_POSTGRES_URL` env var.
 
 ## Architecture
 
@@ -74,7 +74,7 @@ Seed is applied at startup to `random`, `numpy`, and `Faker`. Same `--seed` → 
 
 ### Config
 
-`aurora_data/config.yaml` is the single source of truth for volume scaling, date ranges, crisis parameters, company metadata (currencies, countries, departments), and Postgres connection defaults. `load_profile()` in `main.py` returns a typed `ProfileConfig` from it.
+`rcd_data/config.yaml` is the single source of truth for volume scaling, date ranges, crisis parameters, company metadata (currencies, countries, departments), and Postgres connection defaults. `load_profile()` in `main.py` returns a typed `ProfileConfig` from it.
 
 ### Parquet Partitioning
 

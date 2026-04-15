@@ -3,9 +3,9 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aurora-data"
+name = "rcd-data"
 version = "1.0.0"
-description = "Synthetic operational data generator for Aurora Corp"
+description = "Synthetic operational data generator for RCD Corp"
 requires-python = ">=3.11"
 dependencies = [
     "faker>=24.0.0",
@@ -31,11 +31,11 @@ dependencies = [
 dev = ["pytest>=8.0.0", "ruff>=0.3.0"]
 
 [project.scripts]
-aurora-data = "aurora_data.main:app"
+rcd-data = "rcd_data.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["aurora_data*"]
+include = ["rcd_data*"]
 
 [tool.ruff]
 target-version = "py311"
@@ -45,4 +45,4 @@ line-length = 100
 select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
-testpaths = ["aurora_data/tests"]
+testpaths = ["rcd_data/tests"]

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aurora Corp — Entity Relationship Diagram</title>
+<title>RCD Corp — Entity Relationship Diagram</title>
 <style>
   :root {
     --bg: #070b10;
@@ -171,8 +171,8 @@
 <body>
 
 <div id="header">
-  <div class="logo">AURORA<span>CORP</span></div>
-  <div class="subtitle">Entity Relationship Diagram • aurora_data synthetic data generator</div>
+  <div class="logo">RCD<span>CORP</span></div>
+  <div class="subtitle">Entity Relationship Diagram • rcd_data synthetic data generator</div>
   <div class="stats">
     <div class="stat"><div class="n">43</div><div class="l">Tables</div></div>
     <div class="stat"><div class="n">10</div><div class="l">Domains</div></div>
@@ -333,7 +333,7 @@ const TABLES = [
           ['planned_amount','numeric',null],['actual_amount','numeric',null]],
     x:1260, y:820 },
 
-  { id:'aurora_card_transactions', domain:'finance', label:'aurora_card_txns',
+  { id:'rcd_card_transactions', domain:'finance', label:'rcd_card_txns',
     cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['card_id','varchar',null],
           ['merchant_category','varchar',null],['amount','numeric',null],['status','varchar',null]],
     x:860, y:820 },
@@ -573,8 +573,8 @@ const EDGES = [
   // expenses
   ['expenses','employees','employee_id','id'],
   ['expenses','employees','approved_by','id'],
-  // aurora_card_transactions
-  ['aurora_card_transactions','customers','customer_id','id'],
+  // rcd_card_transactions
+  ['rcd_card_transactions','customers','customer_id','id'],
   // campaigns
   ['campaigns','employees','owner_employee_id','id'],
   // campaign_events

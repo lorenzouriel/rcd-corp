@@ -5,8 +5,8 @@ WORKDIR /app
 COPY requirements.txt pyproject.toml ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY aurora_data/ ./aurora_data/
+COPY rcd_data/ ./rcd_data/
 
 RUN pip install --no-cache-dir -e .
 
-ENTRYPOINT ["aurora-data"]
+ENTRYPOINT ["rcd-data"]
