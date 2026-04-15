@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "rcd-data"
 version = "1.0.0"
 description = "Synthetic operational data generator for RCD Corp"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
     "faker>=24.0.0",

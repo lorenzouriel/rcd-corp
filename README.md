@@ -1,5 +1,7 @@
 # RCD Corp Synthetic Data Generator
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Modular, reproducible Python CLI that generates realistic, interconnected synthetic operational data for **RCD Corp** — a fictional mid-to-large enterprise — across **10 business domains**, writing to **CSV**, **Parquet**, and **Postgres**.
 
 ```
