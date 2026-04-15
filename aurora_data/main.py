@@ -107,7 +107,8 @@ def generate(
     master_gen = MasterDataGenerator(seed=seed)
     master_tables = master_gen.generate(cache, profile_cfg, crisis_days=[])
     cache.populate(master_tables)
-    dispatcher.write_all(master_tables)
+    if only is None:
+        dispatcher.write_all(master_tables)
     log.info(
         "master_data_complete",
         tables=list(master_tables.keys()),
