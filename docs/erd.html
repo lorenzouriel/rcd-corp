@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aurora Corp — Entity Relationship Diagram</title>
+<style>
+  :root {
+    --bg: #070b10;
+    --surface: #0e1520;
+    --surface2: #131d2e;
+    --border: #1e2d42;
+    --text: #c9d4e3;
+    --muted: #5a6a80;
+    --pk: #f0c060;
+    --fk: #60a8f0;
+
+    --master:    #3b82f6;
+    --sales:     #10b981;
+    --finance:   #f59e0b;
+    --marketing: #ec4899;
+    --social:    #a855f7;
+    --supply:    #14b8a6;
+    --mfg:       #f97316;
+    --hr:        #e11d48;
+    --support:   #6366f1;
+    --observ:    #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 11px;
+    overflow: hidden;
+    user-select: none;
+  }
+  /* ── header ── */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 52px;
+    background: linear-gradient(90deg, #0a1020 0%, #0e1830 100%);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px; gap: 16px;
+  }
+  #header .logo { font-size: 15px; font-weight: 700; letter-spacing: .05em; color: #fff; }
+  #header .logo span { color: var(--master); }
+  #header .subtitle { color: var(--muted); font-size: 10px; }
+  #header .stats { margin-left: auto; display: flex; gap: 20px; }
+  #header .stat { text-align: center; }
+  #header .stat .n { font-size: 17px; font-weight: 700; color: #fff; }
+  #header .stat .l { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  #controls {
+    position: fixed; top: 52px; left: 0; right: 0; z-index: 99;
+    height: 38px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px; padding: 0 14px;
+  }
+  .ctrl-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; font: inherit; font-size: 10px;
+    transition: all .15s;
+  }
+  .ctrl-btn:hover { border-color: var(--master); color: #fff; }
+  .ctrl-btn.active { border-color: var(--master); background: rgba(59,130,246,.15); color: var(--master); }
+  #search {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 4px 10px; border-radius: 4px;
+    font: inherit; font-size: 10px; width: 160px;
+    outline: none;
+  }
+  #search:focus { border-color: var(--master); }
+  #zoom-info { margin-left: auto; color: var(--muted); font-size: 10px; }
+
+  /* ── legend ── */
+  #legend {
+    position: fixed; bottom: 14px; left: 14px; z-index: 100;
+    background: rgba(14,21,32,.92); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    display: flex; flex-wrap: wrap; gap: 8px 16px; max-width: 420px;
+  }
+  .leg { display: flex; align-items: center; gap: 5px; font-size: 9px; color: var(--muted); }
+  .leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  /* ── tooltip ── */
+  #tooltip {
+    position: fixed; z-index: 200; pointer-events: none;
+    background: rgba(7,11,16,.97); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px; font-size: 10px;
+    max-width: 260px; line-height: 1.6; display: none;
+  }
+  #tooltip .tt-title { font-weight: 700; color: #fff; margin-bottom: 4px; }
+  #tooltip .tt-col { color: var(--muted); }
+  #tooltip .tt-col .pk { color: var(--pk); }
+  #tooltip .tt-col .fk { color: var(--fk); }
+  /* ── canvas ── */
+  #stage {
+    position: fixed;
+    top: 90px; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #stage.grabbing { cursor: grabbing; }
+  #world { position: absolute; transform-origin: 0 0; }
+  /* ── SVG lines ── */
+  #svg-layer {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .fk-line {
+    fill: none;
+    stroke-width: 1.2;
+    opacity: .4;
+    transition: opacity .2s;
+  }
+  .fk-line.highlighted { opacity: .95; stroke-width: 2; }
+  .fk-line.dimmed { opacity: .05; }
+  /* ── table cards ── */
+  .tbl-card {
+    position: absolute;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 7px;
+    min-width: 148px;
+    max-width: 178px;
+    cursor: default;
+    transition: border-color .2s, box-shadow .2s;
+    z-index: 10;
+  }
+  .tbl-card:hover { z-index: 50; }
+  .tbl-card.selected {
+    z-index: 60;
+    box-shadow: 0 0 0 2px var(--accent-color, var(--master));
+  }
+  .tbl-card.dimmed { opacity: .3; }
+  .tbl-header {
+    padding: 6px 9px 5px;
+    border-radius: 5px 5px 0 0;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .tbl-header .domain-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .tbl-header .tbl-name {
+    font-weight: 700; font-size: 10.5px;
+    color: #fff; letter-spacing: .02em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tbl-body { padding: 4px 0; }
+  .col-row {
+    display: flex; align-items: center; gap: 4px;
+    padding: 1.5px 9px; font-size: 9.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .col-row .badge {
+    font-size: 7.5px; font-weight: 700;
+    padding: 0 3px; border-radius: 2px; flex-shrink: 0;
+    letter-spacing: .04em;
+  }
+  .badge-pk { background: rgba(240,192,96,.15); color: var(--pk); }
+  .badge-fk { background: rgba(96,168,240,.15); color: var(--fk); }
+  .col-name { color: var(--text); }
+  .col-name.is-pk { color: var(--pk); }
+  .col-name.is-fk { color: var(--fk); }
+  .col-type { color: var(--muted); margin-left: auto; font-size: 9px; }
+  .tbl-more { padding: 2px 9px 5px; color: var(--muted); font-size: 9px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">AURORA<span>CORP</span></div>
+  <div class="subtitle">Entity Relationship Diagram • aurora_data synthetic data generator</div>
+  <div class="stats">
+    <div class="stat"><div class="n">43</div><div class="l">Tables</div></div>
+    <div class="stat"><div class="n">10</div><div class="l">Domains</div></div>
+    <div class="stat"><div class="n">70+</div><div class="l">FK Links</div></div>
+  </div>
+</div>
+
+<div id="controls">
+  <button class="ctrl-btn active" id="btn-all" onclick="filterDomain('all')">All Domains</button>
+  <button class="ctrl-btn" id="btn-master"    onclick="filterDomain('master')"    style="--dc:var(--master)">Master Data</button>
+  <button class="ctrl-btn" id="btn-sales"     onclick="filterDomain('sales')"     style="--dc:var(--sales)">Sales</button>
+  <button class="ctrl-btn" id="btn-finance"   onclick="filterDomain('finance')"   style="--dc:var(--finance)">Finance</button>
+  <button class="ctrl-btn" id="btn-marketing" onclick="filterDomain('marketing')" style="--dc:var(--marketing)">Marketing</button>
+  <button class="ctrl-btn" id="btn-social"    onclick="filterDomain('social')"    style="--dc:var(--social)">Social</button>
+  <button class="ctrl-btn" id="btn-supply"    onclick="filterDomain('supply')"    style="--dc:var(--supply)">Supply Chain</button>
+  <button class="ctrl-btn" id="btn-mfg"       onclick="filterDomain('mfg')"       style="--dc:var(--mfg)">Manufacturing</button>
+  <button class="ctrl-btn" id="btn-hr"        onclick="filterDomain('hr')"        style="--dc:var(--hr)">HR</button>
+  <button class="ctrl-btn" id="btn-support"   onclick="filterDomain('support')"   style="--dc:var(--support)">Support</button>
+  <button class="ctrl-btn" id="btn-observ"    onclick="filterDomain('observ')"    style="--dc:var(--observ)">Observability</button>
+  <input id="search" type="text" placeholder="Search tables…" oninput="onSearch(this.value)" />
+  <span id="zoom-info">scroll to zoom • drag to pan • click table to trace FKs</span>
+</div>
+
+<div id="stage">
+  <div id="world">
+    <svg id="svg-layer"></svg>
+  </div>
+</div>
+
+<div id="legend">
+  <div class="leg"><div class="leg-dot" style="background:var(--master)"></div>Master Data</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--sales)"></div>Sales</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--finance)"></div>Finance</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--marketing)"></div>Marketing</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--social)"></div>Social Media</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--supply)"></div>Supply Chain</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--mfg)"></div>Manufacturing</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--hr)"></div>HR</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--support)"></div>Support</div>
+  <div class="leg"><div class="leg-dot" style="background:var(--observ)"></div>Observability</div>
+  <div class="leg" style="margin-top:4px;border-top:1px solid #1e2d42;padding-top:6px;">
+    <span style="color:var(--pk);font-weight:700;font-size:9px">PK</span>&nbsp;Primary Key
+  </div>
+  <div class="leg">
+    <span style="color:var(--fk);font-weight:700;font-size:9px">FK</span>&nbsp;Foreign Key
+  </div>
+</div>
+<div id="tooltip"></div>
+
+<script>
+// ── colour palette ─────────────────────────────────────────────────
+const DC = {
+  master:    '#3b82f6',
+  sales:     '#10b981',
+  finance:   '#f59e0b',
+  marketing: '#ec4899',
+  social:    '#a855f7',
+  supply:    '#14b8a6',
+  mfg:       '#f97316',
+  hr:        '#e11d48',
+  support:   '#6366f1',
+  observ:    '#64748b',
+};
+
+// ── table definitions ──────────────────────────────────────────────
+// col: [name, type, 'pk'|'fk'|null]
+const TABLES = [
+  // ── MASTER DATA ──
+  { id:'customers', domain:'master', label:'customers',
+    cols:[['id','uuid','pk'],['name','varchar',null],['email','varchar',null],
+          ['segment','varchar',null],['country','char(2)',null],['city','varchar',null],
+          ['signup_date','date',null],['ltv_tier','varchar',null],['preferred_channel','varchar',null]],
+    x:780, y:380 },
+
+  { id:'products', domain:'master', label:'products',
+    cols:[['sku','varchar','pk'],['name','varchar',null],['category','varchar',null],
+          ['brand','varchar',null],['price','numeric',null],['currency','char(3)',null],
+          ['supplier_id','uuid','fk'],['is_active','bool',null]],
+    x:780, y:600 },
+
+  { id:'employees', domain:'master', label:'employees',
+    cols:[['id','uuid','pk'],['name','varchar',null],['department','varchar',null],
+          ['level','varchar',null],['manager_id','uuid','fk'],['hire_date','date',null],
+          ['salary','numeric',null],['country','char(2)',null]],
+    x:780, y:180 },
+
+  { id:'suppliers', domain:'master', label:'suppliers',
+    cols:[['id','uuid','pk'],['name','varchar',null],['country','char(2)',null],
+          ['rating','numeric',null],['lead_time_days','int',null],['category','varchar',null]],
+    x:560, y:600 },
+
+  { id:'stores', domain:'master', label:'stores',
+    cols:[['id','uuid','pk'],['name','varchar',null],['country','char(2)',null],
+          ['city','varchar',null],['type','varchar',null],
+          ['manager_employee_id','uuid','fk']],
+    x:560, y:340 },
+
+  { id:'warehouses', domain:'master', label:'warehouses',
+    cols:[['id','uuid','pk'],['name','varchar',null],['location','varchar',null],
+          ['capacity_m3','int',null],['manager_id','uuid','fk'],['type','varchar',null]],
+    x:560, y:500 },
+
+  { id:'fx_rates', domain:'master', label:'fx_rates',
+    cols:[['id','uuid','pk'],['date','date',null],['from_currency','char(3)',null],
+          ['to_currency','char(3)',null],['rate','numeric',null]],
+    x:560, y:180 },
+
+  // ── SALES ──
+  { id:'orders', domain:'sales', label:'orders',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['store_id','uuid','fk'],
+          ['channel','varchar',null],['status','varchar',null],['subtotal','numeric',null],
+          ['total','numeric',null],['currency','char(3)',null],['created_at','timestamptz',null]],
+    x:1060, y:340 },
+
+  { id:'order_items', domain:'sales', label:'order_items',
+    cols:[['id','uuid','pk'],['order_id','uuid','fk'],['product_id','varchar','fk'],
+          ['quantity','int',null],['unit_price','numeric',null],['line_total','numeric',null]],
+    x:1260, y:260 },
+
+  { id:'payments', domain:'sales', label:'payments',
+    cols:[['id','uuid','pk'],['order_id','uuid','fk'],['method','varchar',null],
+          ['status','varchar',null],['gateway','varchar',null],['processing_fee','numeric',null],
+          ['authorized_at','timestamptz',null]],
+    x:1260, y:420 },
+
+  { id:'web_sessions', domain:'sales', label:'web_sessions',
+    cols:[['session_id','uuid','pk'],['customer_id','uuid','fk'],['device','varchar',null],
+          ['utm_source','varchar',null],['pages_viewed','int',null],['bounced','bool',null]],
+    x:1060, y:520 },
+
+  { id:'shopping_cart_events', domain:'sales', label:'shopping_cart_events',
+    cols:[['id','uuid','pk'],['session_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['event_type','varchar',null],['product_id','varchar','fk'],['timestamp','timestamptz',null]],
+    x:1260, y:540 },
+
+  // ── FINANCE ──
+  { id:'invoices', domain:'finance', label:'invoices',
+    cols:[['id','uuid','pk'],['order_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['amount','numeric',null],['currency','char(3)',null],['status','varchar',null],
+          ['issued_at','date',null],['due_at','date',null]],
+    x:1060, y:660 },
+
+  { id:'transactions', domain:'finance', label:'transactions',
+    cols:[['id','uuid','pk'],['type','varchar',null],['amount','numeric',null],
+          ['from_account','varchar',null],['to_account','varchar',null],
+          ['status','varchar',null],['created_at','timestamptz',null]],
+    x:1260, y:680 },
+
+  { id:'expenses', domain:'finance', label:'expenses',
+    cols:[['id','uuid','pk'],['category','varchar',null],['amount','numeric',null],
+          ['employee_id','uuid','fk'],['approved_by','uuid','fk'],
+          ['department','varchar',null],['status','varchar',null]],
+    x:1060, y:800 },
+
+  { id:'budgets', domain:'finance', label:'budgets',
+    cols:[['id','uuid','pk'],['department','varchar',null],['year','int',null],
+          ['quarter','int',null],['category','varchar',null],
+          ['planned_amount','numeric',null],['actual_amount','numeric',null]],
+    x:1260, y:820 },
+
+  { id:'aurora_card_transactions', domain:'finance', label:'aurora_card_txns',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['card_id','varchar',null],
+          ['merchant_category','varchar',null],['amount','numeric',null],['status','varchar',null]],
+    x:860, y:820 },
+
+  // ── MARKETING ──
+  { id:'campaigns', domain:'marketing', label:'campaigns',
+    cols:[['id','uuid','pk'],['name','varchar',null],['type','varchar',null],
+          ['channel','varchar',null],['budget','numeric',null],['status','varchar',null],
+          ['owner_employee_id','uuid','fk']],
+    x:560, y:30 },
+
+  { id:'campaign_events', domain:'marketing', label:'campaign_events',
+    cols:[['id','uuid','pk'],['campaign_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['event_type','varchar',null],['timestamp','timestamptz',null]],
+    x:380, y:30 },
+
+  { id:'email_events', domain:'marketing', label:'email_events',
+    cols:[['id','uuid','pk'],['campaign_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['event_type','varchar',null],['timestamp','timestamptz',null]],
+    x:200, y:30 },
+
+  { id:'leads', domain:'marketing', label:'leads',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['campaign_id','uuid','fk'],
+          ['status','varchar',null],['score','int',null],['owner_employee_id','uuid','fk']],
+    x:380, y:160 },
+
+  { id:'ab_test_exposures', domain:'marketing', label:'ab_test_exposures',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['test_name','varchar',null],
+          ['variant','varchar',null],['exposed_at','timestamptz',null],['converted','bool',null]],
+    x:200, y:160 },
+
+  // ── SOCIAL MEDIA ──
+  { id:'social_accounts', domain:'social', label:'social_accounts',
+    cols:[['id','uuid','pk'],['handle','varchar',null],['name','varchar',null],
+          ['platform','varchar',null],['follower_count','int',null],['verified','bool',null]],
+    x:60, y:340 },
+
+  { id:'social_posts', domain:'social', label:'social_posts',
+    cols:[['id','uuid','pk'],['account_id','uuid','fk'],['campaign_id','uuid','fk'],
+          ['product_sku','varchar','fk'],['author_id','uuid','fk'],
+          ['platform','varchar',null],['post_type','varchar',null],['posted_at','timestamptz',null]],
+    x:60, y:480 },
+
+  { id:'social_metrics', domain:'social', label:'social_metrics',
+    cols:[['id','uuid','pk'],['post_id','uuid','fk'],['date','date',null],
+          ['impressions','int',null],['likes','int',null],['shares','int',null]],
+    x:230, y:520 },
+
+  { id:'social_comments', domain:'social', label:'social_comments',
+    cols:[['id','uuid','pk'],['post_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['sentiment','varchar',null],['body','text',null]],
+    x:60, y:620 },
+
+  { id:'social_mentions', domain:'social', label:'social_mentions',
+    cols:[['id','uuid','pk'],['account_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['platform','varchar',null],['sentiment','varchar',null]],
+    x:230, y:640 },
+
+  { id:'social_dms', domain:'social', label:'social_dms',
+    cols:[['id','uuid','pk'],['account_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['intent','varchar',null],['body','text',null]],
+    x:60, y:750 },
+
+  { id:'influencer_partnerships', domain:'social', label:'influencer_partnerships',
+    cols:[['id','uuid','pk'],['campaign_id','uuid','fk'],['influencer_handle','varchar',null],
+          ['tier','varchar',null],['fee','numeric',null],['status','varchar',null]],
+    x:380, y:310 },
+
+  { id:'influencer_posts', domain:'social', label:'influencer_posts',
+    cols:[['id','uuid','pk'],['partnership_id','uuid','fk'],['platform','varchar',null],
+          ['reach','int',null],['engagement_rate','numeric',null],['posted_at','timestamptz',null]],
+    x:230, y:360 },
+
+  { id:'community_forum_posts', domain:'social', label:'community_forum_posts',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['category','varchar',null],
+          ['title','varchar',null],['replies_count','int',null],['likes','int',null]],
+    x:230, y:440 },
+
+  { id:'reviews', domain:'social', label:'reviews',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['product_sku','varchar','fk'],
+          ['source','varchar',null],['rating','int',null],['sentiment','varchar',null]],
+    x:60, y:860 },
+
+  { id:'social_ad_spend', domain:'social', label:'social_ad_spend',
+    cols:[['id','uuid','pk'],['campaign_id','uuid','fk'],['platform','varchar',null],
+          ['date','date',null],['spend','numeric',null],['clicks','int',null]],
+    x:380, y:440 },
+
+  // ── SUPPLY CHAIN ──
+  { id:'shipments', domain:'supply', label:'shipments',
+    cols:[['id','uuid','pk'],['order_id','uuid','fk'],['warehouse_id','uuid','fk'],
+          ['carrier','varchar',null],['tracking_number','varchar',null],['status','varchar',null],
+          ['created_at','date',null],['delivered_at','date',null]],
+    x:1060, y:120 },
+
+  { id:'inventory_snapshots', domain:'supply', label:'inventory_snapshots',
+    cols:[['id','uuid','pk'],['product_sku','varchar','fk'],['warehouse_id','uuid','fk'],
+          ['date','date',null],['quantity_on_hand','int',null],['reorder_point','int',null]],
+    x:860, y:30 },
+
+  { id:'purchase_orders', domain:'supply', label:'purchase_orders',
+    cols:[['id','uuid','pk'],['supplier_id','uuid','fk'],['warehouse_id','uuid','fk'],
+          ['status','varchar',null],['total_amount','numeric',null],['ordered_at','date',null]],
+    x:1060, y:30 },
+
+  { id:'stock_movements', domain:'supply', label:'stock_movements',
+    cols:[['id','uuid','pk'],['product_sku','varchar','fk'],['warehouse_id','uuid','fk'],
+          ['movement_type','varchar',null],['quantity','int',null],['created_at','timestamptz',null]],
+    x:860, y:150 },
+
+  { id:'returns', domain:'supply', label:'returns',
+    cols:[['id','uuid','pk'],['order_id','uuid','fk'],['customer_id','uuid','fk'],
+          ['product_sku','varchar','fk'],['reason','varchar',null],['status','varchar',null],
+          ['refund_amount','numeric',null]],
+    x:1260, y:120 },
+
+  // ── MANUFACTURING ──
+  { id:'production_runs', domain:'mfg', label:'production_runs',
+    cols:[['id','uuid','pk'],['product_sku','varchar','fk'],['factory_location','varchar',null],
+          ['planned_qty','int',null],['actual_qty','int',null],['operator_id','uuid','fk'],
+          ['status','varchar',null],['started_at','timestamptz',null]],
+    x:1460, y:180 },
+
+  { id:'quality_checks', domain:'mfg', label:'quality_checks',
+    cols:[['id','uuid','pk'],['production_run_id','uuid','fk'],['inspector_id','uuid','fk'],
+          ['check_type','varchar',null],['pass_rate','numeric',null],['result','varchar',null]],
+    x:1460, y:340 },
+
+  { id:'maintenance_events', domain:'mfg', label:'maintenance_events',
+    cols:[['id','uuid','pk'],['machine_id','varchar',null],['factory','varchar',null],
+          ['type','varchar',null],['technician_id','uuid','fk'],['downtime_h','numeric',null]],
+    x:1460, y:480 },
+
+  { id:'machine_telemetry', domain:'mfg', label:'machine_telemetry',
+    cols:[['id','uuid','pk'],['machine_id','varchar',null],['factory','varchar',null],
+          ['timestamp','timestamptz',null],['temperature_c','numeric',null],
+          ['vibration_hz','numeric',null],['alert_triggered','bool',null]],
+    x:1460, y:620 },
+
+  // ── HR ──
+  { id:'attendance', domain:'hr', label:'attendance',
+    cols:[['id','uuid','pk'],['employee_id','uuid','fk'],['date','date',null],
+          ['status','varchar',null],['hours_worked','numeric',null],['overtime_h','numeric',null]],
+    x:1460, y:760 },
+
+  { id:'performance_reviews', domain:'hr', label:'performance_reviews',
+    cols:[['id','uuid','pk'],['employee_id','uuid','fk'],['reviewer_id','uuid','fk'],
+          ['period','varchar',null],['score','numeric',null],['rating','varchar',null]],
+    x:1460, y:880 },
+
+  { id:'training_records', domain:'hr', label:'training_records',
+    cols:[['id','uuid','pk'],['employee_id','uuid','fk'],['course_name','varchar',null],
+          ['provider','varchar',null],['passed','bool',null],['score','numeric',null]],
+    x:1260, y:960 },
+
+  { id:'recruitment_pipeline', domain:'hr', label:'recruitment_pipeline',
+    cols:[['id','uuid','pk'],['recruiter_id','uuid','fk'],['position','varchar',null],
+          ['department','varchar',null],['status','varchar',null],['applied_at','timestamptz',null]],
+    x:1060, y:960 },
+
+  { id:'engagement_surveys', domain:'hr', label:'engagement_surveys',
+    cols:[['id','uuid','pk'],['employee_id','uuid','fk'],['period','varchar',null],
+          ['engagement_score','numeric',null],['nps','int',null],['would_recommend','bool',null]],
+    x:860, y:960 },
+
+  // ── SUPPORT ──
+  { id:'tickets', domain:'support', label:'tickets',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['agent_id','uuid','fk'],
+          ['channel','varchar',null],['category','varchar',null],['status','varchar',null],
+          ['priority','varchar',null],['csat_score','numeric',null]],
+    x:660, y:820 },
+
+  { id:'ticket_messages', domain:'support', label:'ticket_messages',
+    cols:[['id','uuid','pk'],['ticket_id','uuid','fk'],['sender_type','varchar',null],
+          ['sender_id','uuid',null],['body','text',null],['is_internal_note','bool',null]],
+    x:460, y:860 },
+
+  { id:'call_center_calls', domain:'support', label:'call_center_calls',
+    cols:[['id','uuid','pk'],['customer_id','uuid','fk'],['agent_id','uuid','fk'],
+          ['duration_s','int',null],['call_type','varchar',null],['resolution','varchar',null]],
+    x:660, y:960 },
+
+  // ── OBSERVABILITY ──
+  { id:'errors', domain:'observ', label:'errors',
+    cols:[['id','uuid','pk'],['service','varchar',null],['error_type','varchar',null],
+          ['environment','varchar',null],['count','int',null],['created_at','timestamptz',null]],
+    x:1460, y:30 },
+
+  { id:'deployments', domain:'observ', label:'deployments',
+    cols:[['id','uuid','pk'],['service','varchar',null],['version','varchar',null],
+          ['environment','varchar',null],['deployed_by','uuid','fk'],['created_at','timestamptz',null]],
+    x:1260, y:30 },
+
+  { id:'security_events', domain:'observ', label:'security_events',
+    cols:[['id','uuid','pk'],['event_type','varchar',null],['service','varchar',null],
+          ['severity','varchar',null],['created_at','timestamptz',null]],
+    x:1460, y:140 },
+
+  { id:'app_logs', domain:'observ', label:'app_logs',
+    cols:[['id','uuid','pk'],['service','varchar',null],['level','varchar',null],
+          ['message','text',null],['timestamp','timestamptz',null]],
+    x:1260, y:140 },
+
+  { id:'api_requests', domain:'observ', label:'api_requests',
+    cols:[['id','uuid','pk'],['service','varchar',null],['path','varchar',null],
+          ['method','varchar',null],['status_code','int',null],['latency_ms','int',null]],
+    x:1060, y:240 },
+];
+
+// ── FK edges [fromTable, toTable, fromCol, toCol] ─────────────────
+const EDGES = [
+  // products
+  ['products','suppliers','supplier_id','id'],
+  // employees self-ref
+  ['employees','employees','manager_id','id'],
+  // stores
+  ['stores','employees','manager_employee_id','id'],
+  // warehouses
+  ['warehouses','employees','manager_id','id'],
+  // orders
+  ['orders','customers','customer_id','id'],
+  ['orders','stores','store_id','id'],
+  // order_items
+  ['order_items','orders','order_id','id'],
+  ['order_items','products','product_id','sku'],
+  // payments
+  ['payments','orders','order_id','id'],
+  // web_sessions
+  ['web_sessions','customers','customer_id','id'],
+  // shopping_cart_events
+  ['shopping_cart_events','web_sessions','session_id','session_id'],
+  ['shopping_cart_events','customers','customer_id','id'],
+  ['shopping_cart_events','products','product_id','sku'],
+  // invoices
+  ['invoices','orders','order_id','id'],
+  ['invoices','customers','customer_id','id'],
+  // expenses
+  ['expenses','employees','employee_id','id'],
+  ['expenses','employees','approved_by','id'],
+  // aurora_card_transactions
+  ['aurora_card_transactions','customers','customer_id','id'],
+  // campaigns
+  ['campaigns','employees','owner_employee_id','id'],
+  // campaign_events
+  ['campaign_events','campaigns','campaign_id','id'],
+  ['campaign_events','customers','customer_id','id'],
+  // email_events
+  ['email_events','campaigns','campaign_id','id'],
+  ['email_events','customers','customer_id','id'],
+  // leads
+  ['leads','customers','customer_id','id'],
+  ['leads','campaigns','campaign_id','id'],
+  ['leads','employees','owner_employee_id','id'],
+  // ab_test_exposures
+  ['ab_test_exposures','customers','customer_id','id'],
+  // social_posts
+  ['social_posts','social_accounts','account_id','id'],
+  ['social_posts','campaigns','campaign_id','id'],
+  ['social_posts','products','product_sku','sku'],
+  ['social_posts','employees','author_id','id'],
+  // social_metrics
+  ['social_metrics','social_posts','post_id','id'],
+  // social_comments
+  ['social_comments','social_posts','post_id','id'],
+  ['social_comments','customers','customer_id','id'],
+  // social_mentions
+  ['social_mentions','social_accounts','account_id','id'],
+  ['social_mentions','customers','customer_id','id'],
+  // social_dms
+  ['social_dms','social_accounts','account_id','id'],
+  ['social_dms','customers','customer_id','id'],
+  // influencer_partnerships
+  ['influencer_partnerships','campaigns','campaign_id','id'],
+  // influencer_posts
+  ['influencer_posts','influencer_partnerships','partnership_id','id'],
+  // community_forum_posts
+  ['community_forum_posts','customers','customer_id','id'],
+  // reviews
+  ['reviews','customers','customer_id','id'],
+  ['reviews','products','product_sku','sku'],
+  // social_ad_spend
+  ['social_ad_spend','campaigns','campaign_id','id'],
+  // shipments
+  ['shipments','orders','order_id','id'],
+  ['shipments','warehouses','warehouse_id','id'],
+  // inventory_snapshots
+  ['inventory_snapshots','products','product_sku','sku'],
+  ['inventory_snapshots','warehouses','warehouse_id','id'],
+  // purchase_orders
+  ['purchase_orders','suppliers','supplier_id','id'],
+  ['purchase_orders','warehouses','warehouse_id','id'],
+  // stock_movements
+  ['stock_movements','products','product_sku','sku'],
+  ['stock_movements','warehouses','warehouse_id','id'],
+  // returns
+  ['returns','orders','order_id','id'],
+  ['returns','customers','customer_id','id'],
+  ['returns','products','product_sku','sku'],
+  // production_runs
+  ['production_runs','products','product_sku','sku'],
+  ['production_runs','employees','operator_id','id'],
+  // quality_checks
+  ['quality_checks','production_runs','production_run_id','id'],
+  ['quality_checks','employees','inspector_id','id'],
+  // maintenance_events
+  ['maintenance_events','employees','technician_id','id'],
+  // attendance
+  ['attendance','employees','employee_id','id'],
+  // performance_reviews
+  ['performance_reviews','employees','employee_id','id'],
+  ['performance_reviews','employees','reviewer_id','id'],
+  // training_records
+  ['training_records','employees','employee_id','id'],
+  // recruitment_pipeline
+  ['recruitment_pipeline','employees','recruiter_id','id'],
+  // engagement_surveys
+  ['engagement_surveys','employees','employee_id','id'],
+  // tickets
+  ['tickets','customers','customer_id','id'],
+  ['tickets','employees','agent_id','id'],
+  // ticket_messages
+  ['ticket_messages','tickets','ticket_id','id'],
+  // call_center_calls
+  ['call_center_calls','customers','customer_id','id'],
+  ['call_center_calls','employees','agent_id','id'],
+  // deployments
+  ['deployments','employees','deployed_by','id'],
+];
+
+// ── card height estimation ────────────────────────────────────────
+const CARD_W = 172;
+function cardH(t) { return 30 + t.cols.length * 16 + (t.cols.length > 6 ? 16 : 0); }
+
+// ── build DOM ─────────────────────────────────────────────────────
+const world = document.getElementById('world');
+const svgEl = document.getElementById('svg-layer');
+const cards = {};
+
+TABLES.forEach(t => {
+  const color = DC[t.domain];
+  const el = document.createElement('div');
+  el.className = 'tbl-card';
+  el.id = 'card-' + t.id;
+  el.style.cssText = `left:${t.x}px;top:${t.y}px;width:${CARD_W}px;--accent-color:${color}`;
+
+  const showCols = t.cols.slice(0, 7);
+  const extra = t.cols.length - showCols.length;
+
+  el.innerHTML = `
+    <div class="tbl-header" style="background:${color}18;border-bottom-color:${color}30">
+      <div class="domain-dot" style="background:${color}"></div>
+      <div class="tbl-name">${t.label}</div>
+    </div>
+    <div class="tbl-body">
+      ${showCols.map(([n,tp,k])=>`
+        <div class="col-row">
+          ${k ? `<span class="badge badge-${k}">${k.toUpperCase()}</span>` : '<span style="width:18px"></span>'}
+          <span class="col-name${k==='pk'?' is-pk':k==='fk'?' is-fk':''}">${n}</span>
+          <span class="col-type">${tp}</span>
+        </div>
+      `).join('')}
+    </div>
+    ${extra > 0 ? `<div class="tbl-more">+${extra} more columns…</div>` : ''}
+  `;
+
+  el.addEventListener('click', e => { e.stopPropagation(); selectTable(t.id); });
+  el.addEventListener('mousemove', e => showTooltip(e, t));
+  el.addEventListener('mouseleave', hideTooltip);
+
+  world.appendChild(el);
+  cards[t.id] = el;
+});
+
+// ── compute card centers ───────────────────────────────────────────
+function getCenter(tid) {
+  const t = TABLES.find(x => x.id === tid);
+  return { x: t.x + CARD_W / 2, y: t.y + cardH(t) / 2 };
+}
+function getPort(tid, isOut) {
+  const t = TABLES.find(x => x.id === tid);
+  const cx = t.x + (isOut ? CARD_W : 0);
+  const cy = t.y + 14;
+  return { x: cx, y: cy };
+}
+
+// ── draw SVG edges ────────────────────────────────────────────────
+svgEl.style.width = '3000px';
+svgEl.style.height = '1400px';
+
+const lineEls = {};
+EDGES.forEach((e, i) => {
+  const [fromId, toId] = e;
+  const color = DC[TABLES.find(x=>x.id===fromId)?.domain] || '#fff';
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('class','fk-line');
+  path.setAttribute('stroke', color);
+  path.dataset.from = fromId;
+  path.dataset.to = toId;
+  path.id = `edge-${i}`;
+  svgEl.appendChild(path);
+  lineEls[i] = path;
+});
+
+function updateEdges() {
+  EDGES.forEach((e, i) => {
+    const [fromId, toId] = e;
+    const ft = TABLES.find(x=>x.id===fromId);
+    const tt = TABLES.find(x=>x.id===toId);
+    if (!ft || !tt) return;
+
+    const fx = ft.x + CARD_W/2, fy = ft.y + 14;
+    const tx = tt.x + CARD_W/2, ty = tt.y + 14;
+
+    const dx = tx - fx, dy = ty - fy;
+    const cx1 = fx + dx * 0.4;
+    const cx2 = tx - dx * 0.4;
+    lineEls[i].setAttribute('d', `M${fx},${fy} C${cx1},${fy} ${cx2},${ty} ${tx},${ty}`);
+  });
+}
+updateEdges();
+
+// ── selection logic ───────────────────────────────────────────────
+let selectedTable = null;
+
+function selectTable(tid) {
+  if (selectedTable === tid) {
+    clearSelection();
+    return;
+  }
+  selectedTable = tid;
+
+  const connected = new Set([tid]);
+  EDGES.forEach(e => {
+    if (e[0] === tid || e[1] === tid) { connected.add(e[0]); connected.add(e[1]); }
+  });
+
+  Object.entries(cards).forEach(([id, el]) => {
+    el.classList.toggle('selected', id === tid);
+    el.classList.toggle('dimmed', !connected.has(id));
+  });
+
+  EDGES.forEach((e, i) => {
+    const rel = e[0] === tid || e[1] === tid;
+    const bothIn = connected.has(e[0]) && connected.has(e[1]);
+    lineEls[i].classList.toggle('highlighted', rel);
+    lineEls[i].classList.toggle('dimmed', !rel);
+  });
+}
+
+function clearSelection() {
+  selectedTable = null;
+  Object.values(cards).forEach(el => {
+    el.classList.remove('selected','dimmed');
+  });
+  Object.values(lineEls).forEach(el => {
+    el.classList.remove('highlighted','dimmed');
+  });
+}
+
+document.getElementById('stage').addEventListener('click', clearSelection);
+
+// ── domain filter ─────────────────────────────────────────────────
+let currentDomain = 'all';
+function filterDomain(d) {
+  currentDomain = d;
+  document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-'+d)?.classList.add('active');
+  document.getElementById('btn-all')?.classList.toggle('active', d==='all');
+
+  TABLES.forEach(t => {
+    const el = cards[t.id];
+    el.style.display = (d === 'all' || t.domain === d) ? '' : 'none';
+  });
+  EDGES.forEach((e, i) => {
+    const ft = TABLES.find(x=>x.id===e[0]);
+    const tt = TABLES.find(x=>x.id===e[1]);
+    const vis = d === 'all' || ft?.domain === d || tt?.domain === d;
+    lineEls[i].style.display = vis ? '' : 'none';
+  });
+}
+
+// ── search ────────────────────────────────────────────────────────
+function onSearch(q) {
+  q = q.toLowerCase();
+  TABLES.forEach(t => {
+    const el = cards[t.id];
+    const match = !q || t.label.includes(q) || t.cols.some(c=>c[0].includes(q));
+    el.style.opacity = match ? '' : '0.15';
+  });
+}
+
+// ── pan & zoom ────────────────────────────────────────────────────
+let scale = 0.72, ox = 20, oy = 10;
+let dragging = false, lx = 0, ly = 0;
+const stage = document.getElementById('stage');
+const zoomInfo = document.getElementById('zoom-info');
+
+function applyTransform() {
+  world.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`;
+  zoomInfo.textContent = `${Math.round(scale*100)}% | scroll to zoom • drag to pan • click table to trace FKs`;
+}
+applyTransform();
+
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.92 : 1.09;
+  const rect = stage.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const newScale = Math.min(2, Math.max(0.2, scale * delta));
+  ox = mx - (mx - ox) * (newScale / scale);
+  oy = my - (my - oy) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+}, {passive:false});
+
+stage.addEventListener('mousedown', e => {
+  if (e.target.closest('.tbl-card')) return;
+  dragging = true; lx = e.clientX; ly = e.clientY;
+  stage.classList.add('grabbing');
+});
+window.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  ox += e.clientX - lx; oy += e.clientY - ly;
+  lx = e.clientX; ly = e.clientY;
+  applyTransform();
+});
+window.addEventListener('mouseup', () => { dragging = false; stage.classList.remove('grabbing'); });
+
+// ── tooltip ───────────────────────────────────────────────────────
+const tip = document.getElementById('tooltip');
+function showTooltip(e, t) {
+  const color = DC[t.domain];
+  const connected = EDGES.filter(ed => ed[0] === t.id || ed[1] === t.id);
+  const outbound = connected.filter(ed => ed[0] === t.id).map(ed => `→ ${ed[1]}.${ed[3]}`);
+  const inbound  = connected.filter(ed => ed[1] === t.id).map(ed => `← ${ed[0]}.${ed[2]}`);
+
+  let html = `<div class="tt-title" style="color:${color}">${t.id}</div>`;
+  html += `<div class="tt-col" style="margin-bottom:4px">${t.cols.length} columns | ${connected.length} FK links</div>`;
+  if (outbound.length) html += `<div class="tt-col"><b style="color:#aaa">References:</b><br>${outbound.join('<br>')}</div>`;
+  if (inbound.length)  html += `<div class="tt-col" style="margin-top:4px"><b style="color:#aaa">Referenced by:</b><br>${inbound.slice(0,6).join('<br>')}${inbound.length>6?`<br>…+${inbound.length-6} more`:''}</div>`;
+
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  moveTip(e);
+}
+function moveTip(e) {
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + 280 > window.innerWidth) x = e.clientX - 290;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTooltip() { tip.style.display = 'none'; }
+document.addEventListener('mousemove', e => { if (tip.style.display !== 'none') moveTip(e); });
+
+// ── keyboard shortcuts ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') clearSelection();
+  if (e.key === '0') { scale = 0.72; ox = 20; oy = 10; applyTransform(); }
+});
+</script>
+</body>
+</html>

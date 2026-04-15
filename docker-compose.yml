@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aurora_postgres
+    environment:
+      POSTGRES_USER: aurora
+      POSTGRES_PASSWORD: aurora
+      POSTGRES_DB: aurora_corp
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - aurora_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aurora -d aurora_corp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aurora_generator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AURORA_POSTGRES_URL: "postgresql+psycopg2://aurora:aurora@postgres:5432/aurora_corp"
+    volumes:
+      - ./output:/app/output
+    command: ["aurora-data", "generate", "--profile", "demo", "--sink", "all"]
+    profiles:
+      - run
+
+volumes:
+  aurora_pgdata:

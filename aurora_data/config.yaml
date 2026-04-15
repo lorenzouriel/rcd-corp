@@ -1,0 +1,94 @@
+output:
+  base_path: "./output"
+  csv_path: "./output/csv"
+  parquet_path: "./output/parquet"
+  partition_col: "date"
+  # Set via env var AURORA_POSTGRES_URL or here (not recommended for credentials)
+  # postgres_url: "postgresql+psycopg2://aurora:aurora@localhost:5432/aurora_corp"
+
+profiles:
+  demo:
+    n_customers: 1000
+    n_products: 250
+    n_employees: 200
+    n_orders: 10000
+    n_stores: 20
+    n_warehouses: 5
+    n_suppliers: 20
+    date_range_days: 30
+    crisis_freq_per_month: 1
+    chunk_size: 5000
+    start_date: "2024-01-01"
+
+  standard:
+    n_customers: 50000
+    n_products: 250
+    n_employees: 4200
+    n_orders: 1000000
+    n_stores: 180
+    n_warehouses: 10
+    n_suppliers: 50
+    date_range_days: 90
+    crisis_freq_per_month: 1
+    chunk_size: 50000
+    start_date: "2024-01-01"
+
+  loadtest:
+    n_customers: 500000
+    n_products: 250
+    n_employees: 4200
+    n_orders: 20000000
+    n_stores: 180
+    n_warehouses: 10
+    n_suppliers: 50
+    date_range_days: 730
+    crisis_freq_per_month: 2
+    chunk_size: 200000
+    start_date: "2022-01-01"
+
+company:
+  name: "Aurora Corp"
+  ticker: "AURC"
+  founded: 2008
+  hq: "São Paulo"
+  locales:
+    - "pt_BR"
+    - "es_MX"
+    - "pt_PT"
+    - "en_US"
+  countries:
+    - "BR"
+    - "MX"
+    - "PT"
+    - "US"
+  currencies:
+    - "BRL"
+    - "MXN"
+    - "EUR"
+    - "USD"
+  departments:
+    - "Engineering"
+    - "Product"
+    - "Data & Analytics"
+    - "Marketing"
+    - "Sales"
+    - "Customer Success"
+    - "Supply Chain"
+    - "Manufacturing"
+    - "Finance"
+    - "HR"
+    - "Legal"
+    - "IT"
+    - "Security"
+
+crisis:
+  sentiment_shift:
+    positive_baseline: 0.55
+    neutral_baseline: 0.30
+    negative_baseline: 0.15
+    positive_crisis: 0.20
+    neutral_crisis: 0.25
+    negative_crisis: 0.55
+  ticket_multiplier: 5
+  social_negative_multiplier: 3
+  duration_days: 3
