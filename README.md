@@ -90,7 +90,7 @@ supply_chain  manufacturing  hr  support  observability
 | Profile | Customers | Orders | Employees | Date Range | Approx Total Rows |
 |---------|-----------|--------|-----------|------------|-------------------|
 | `demo` | 1,000 | 10,000 | 200 | 30 days | ~200k |
-| `standard` | 50,000 | 1,000,000 | 4,200 | 90 days | ~15M |
+| `standard` | 50,000 | 1,000,000 | 4,200 | 360 days | ~15M |
 | `loadtest` | 500,000 | 20,000,000 | 4,200 | 730 days | ~200M+ |
 
 > **Note:** `machine_telemetry` and `api_requests` / `app_logs` are written as date-partitioned Parquet only on the `loadtest` profile regardless of `--sink`, to prevent OOM.

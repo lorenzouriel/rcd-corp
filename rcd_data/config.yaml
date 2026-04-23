@@ -28,7 +28,7 @@ profiles:
     n_stores: 180
     n_warehouses: 10
     n_suppliers: 50
-    date_range_days: 90
+    date_range_days: 360
     crisis_freq_per_month: 1
     chunk_size: 50000
     start_date: "2025-01-01"
