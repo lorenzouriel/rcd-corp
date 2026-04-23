@@ -38,8 +38,8 @@ rcd-data info
 ### Local (Python 3.11+)
 
 ```bash
-git clone https://github.com/lorenzouriel/real-company-data
-cd real-company-data
+git clone https://github.com/lorenzouriel/rcd-corp
+cd rcd-corp
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
