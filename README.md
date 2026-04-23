@@ -1,18 +1,18 @@
-# RCD Corp Synthetic Data Generator
+<div align="center">
+  <img src="docs/rcd-logo.png" alt="logo" width="600">
+</div>
 
+# RCD Corp 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Modular, reproducible Python CLI that generates realistic, interconnected synthetic operational data for **RCD Corp** — a fictional mid-to-large enterprise — across **10 business domains**, writing to **CSV**, **Parquet**, and **Postgres**.
+Modular, reproducible Python CLI that generates realistic, interconnected synthetic operational data for **RCD (Real Company Data) Corp** — a fictional mid-to-large enterprise — across **10 business domains**, writing to **CSV**, **Parquet**, and **Postgres**.
 
 ```
 RCD Corp — founded 2008, HQ São Paulo (BR), offices in Mexico City, Lisbon, Miami
 ~4,200 employees · ~$1.2B annual revenue · Ticker: RCDC
 ```
 
----
-
 ## Quick Start
-
 ```bash
 # Install
 pip install -e .
@@ -33,14 +33,12 @@ RCD_OUTPUT_DIR=./output rcd-data validate
 rcd-data info
 ```
 
----
-
 ## Setup
 
 ### Local (Python 3.11+)
 
 ```bash
-git clone <repo>
+git clone https://github.com/lorenzouriel/real-company-data
 cd real-company-data
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
@@ -49,7 +47,6 @@ pip install -e .
 ```
 
 ### With Postgres (docker-compose)
-
 ```bash
 docker compose up -d postgres
 export RCD_POSTGRES_URL="postgresql+psycopg2://rcd:rcd@localhost:5432/rcd_corp"
@@ -57,15 +54,11 @@ rcd-data generate --profile demo --sink all
 ```
 
 ### Docker (full end-to-end)
-
 ```bash
 docker compose --profile run up --build
 ```
 
----
-
 ## CLI Reference
-
 ```
 rcd-data generate [OPTIONS]
 rcd-data validate [OPTIONS]
@@ -73,7 +66,6 @@ rcd-data info [OPTIONS]
 ```
 
 ### `generate` options
-
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--profile` | `demo` | Volume profile: `demo` · `standard` · `loadtest` |
@@ -83,23 +75,18 @@ rcd-data info [OPTIONS]
 | `--config` | built-in | Path to a custom `config.yaml` |
 
 ### `validate` options
-
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--output` | `./output` | Path to generated output root |
 | `--format` | `parquet` | Format to validate: `parquet` · `csv` |
 
 ### Domain names for `--only`
-
 ```
 master_data  sales  finance  marketing  social_media
 supply_chain  manufacturing  hr  support  observability
 ```
 
----
-
 ## Volume Profiles
-
 | Profile | Customers | Orders | Employees | Date Range | Approx Total Rows |
 |---------|-----------|--------|-----------|------------|-------------------|
 | `demo` | 1,000 | 10,000 | 200 | 30 days | ~200k |
@@ -108,10 +95,7 @@ supply_chain  manufacturing  hr  support  observability
 
 > **Note:** `machine_telemetry` and `api_requests` / `app_logs` are written as date-partitioned Parquet only on the `loadtest` profile regardless of `--sink`, to prevent OOM.
 
----
-
 ## Output Structure
-
 ```
 output/
 ├── csv/
@@ -130,12 +114,8 @@ output/
     └── ...
 ```
 
----
-
 ## Schema Reference
-
 ### Master Data
-
 | Table | Key Columns | Description |
 |-------|-------------|-------------|
 | `customers` | `id`, `segment`, `country`, `ltv_tier`, `cpf_or_cnpj` | 75% B2C, 20% B2B, 5% VIP; Pareto LTV |
@@ -147,7 +127,6 @@ output/
 | `fx_rates` | `date`, `from_currency`, `to_currency`, `rate` | BRL/MXN/EUR/USD — daily random walk |
 
 ### Sales & E-commerce
-
 | Table | Key Columns | Description |
 |-------|-------------|-------------|
 | `orders` | `id`, `customer_id`, `store_id`, `status`, `total`, `currency` | State machine: pending→paid→shipped→delivered |
@@ -157,7 +136,6 @@ output/
 | `shopping_cart_events` | `session_id`, `product_id`, `event_type` | view/add/remove/checkout/purchase |
 
 ### Finance
-
 | Table | Key Columns |
 |-------|-------------|
 | `invoices` | `order_id`, `customer_id`, `amount`, `status` |
@@ -167,7 +145,6 @@ output/
 | `rcd_card_transactions` | `card_id`, `customer_id`, `merchant_category`, `amount` |
 
 ### Marketing
-
 | Table | Key Columns |
 |-------|-------------|
 | `campaigns` | `id`, `type`, `channel`, `budget`, `status` |
@@ -177,7 +154,6 @@ output/
 | `ab_test_exposures` | `test_name`, `variant`, `customer_id`, `converted` |
 
 ### Social Media
-
 | Table | Key Columns |
 |-------|-------------|
 | `social_accounts` | `handle`, `platform`, `follower_count` |
@@ -193,7 +169,6 @@ output/
 | `social_ad_spend` | `date`, `platform`, `campaign_id`, `spend`, `conversions` |
 
 ### Supply Chain
-
 | Table | Key Columns |
 |-------|-------------|
 | `shipments` | `order_id`, `warehouse_id`, `carrier`, `tracking_number`, `status` |
@@ -203,7 +178,6 @@ output/
 | `returns` | `order_id`, `customer_id`, `product_sku`, `reason`, `refund_amount` |
 
 ### Manufacturing
-
 | Table | Key Columns |
 |-------|-------------|
 | `production_runs` | `product_sku`, `factory_location`, `status`, `planned_qty`, `actual_qty` |
@@ -212,7 +186,6 @@ output/
 | `maintenance_events` | `machine_id`, `factory`, `type`, `downtime_h`, `cost` |
 
 ### HR
-
 | Table | Key Columns |
 |-------|-------------|
 | `attendance` | `employee_id`, `date`, `status`, `hours_worked`, `overtime_h` |
@@ -222,7 +195,6 @@ output/
 | `engagement_surveys` | `employee_id`, `period`, `engagement_score`, `nps` |
 
 ### Support
-
 | Table | Key Columns |
 |-------|-------------|
 | `tickets` | `customer_id`, `category`, `status`, `priority`, `sentiment`, `csat_score` |
@@ -230,7 +202,6 @@ output/
 | `call_center_calls` | `customer_id`, `agent_id`, `duration_s`, `sentiment`, `resolution` |
 
 ### Observability
-
 | Table | Key Columns |
 |-------|-------------|
 | `app_logs` | `service`, `level`, `message`, `trace_id` — **partitioned Parquet** |
@@ -239,10 +210,7 @@ output/
 | `deployments` | `service`, `version`, `environment`, `status` |
 | `security_events` | `event_type`, `severity`, `source_ip`, `resolved` |
 
----
-
 ## Dashboard → Dataset Mapping
-
 | Dashboard | Primary Tables |
 |-----------|---------------|
 | Sales / Revenue KPI | `orders`, `order_items`, `payments`, `fx_rates` |
@@ -258,10 +226,7 @@ output/
 | Financial P&L | `invoices`, `transactions`, `expenses`, `budgets`, `rcd_card_transactions` |
 | Executive 360 | All of the above |
 
----
-
 ## Behavioral Rules Implemented
-
 | Rule | Implementation |
 |------|---------------|
 | Black Friday 10x | `utils/time_utils.py:black_friday_multiplier()` |
@@ -273,12 +238,8 @@ output/
 | Crisis ticket spike (5x) | `generators/support.py:_build_tickets()` |
 | Customer LTV Pareto (top 20% = 80%) | `utils/distributions.py:pareto_ltv()` |
 
----
-
 ## Reproducibility
-
 Same seed → identical output:
-
 ```bash
 rcd-data generate --profile demo --seed 42 --sink csv
 rcd-data generate --profile demo --seed 42 --sink csv  # byte-identical
@@ -286,12 +247,8 @@ rcd-data generate --profile demo --seed 42 --sink csv  # byte-identical
 
 All RNG sources are seeded at startup: `random.seed(N)`, `np.random.seed(N)`, `Faker.seed(N)`.
 
----
-
 ## Tuning Guide
-
 Edit `rcd_data/config.yaml` to tune output volumes without code changes.
-
 | Knob | Where | Effect |
 |------|-------|--------|
 | `profiles.*.n_orders` | config.yaml | Controls orders + all downstream fact table row counts |
@@ -305,7 +262,6 @@ Edit `rcd_data/config.yaml` to tune output volumes without code changes.
 | `crisis.sentiment_shift.*` | config.yaml | Positive/negative % baseline and crisis values |
 
 ### Custom profile example
-
 ```yaml
 profiles:
   my_profile:
@@ -326,10 +282,7 @@ profiles:
 rcd-data generate --profile my_profile --sink parquet
 ```
 
----
-
 ## Project Structure
-
 ```
 rcd_data/
 ├── config.yaml              # Volume profiles and company config

@@ -18,7 +18,7 @@ profiles:
     date_range_days: 30
     crisis_freq_per_month: 1
     chunk_size: 5000
-    start_date: "2024-01-01"
+    start_date: "2025-01-01"
 
   standard:
     n_customers: 50000
@@ -31,7 +31,7 @@ profiles:
     date_range_days: 90
     crisis_freq_per_month: 1
     chunk_size: 50000
-    start_date: "2024-01-01"
+    start_date: "2025-01-01"
 
   loadtest:
     n_customers: 500000
@@ -41,7 +41,7 @@ profiles:
     n_stores: 180
     n_warehouses: 10
     n_suppliers: 50
-    date_range_days: 730
+    date_range_days: 1461
     crisis_freq_per_month: 2
     chunk_size: 200000
     start_date: "2022-01-01"
