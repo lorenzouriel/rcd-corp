@@ -97,7 +97,7 @@ class SupplyChainGenerator(BaseGenerator):
                 sampled_skus = self.rng.choice(skus, size=n_skus, replace=False)
                 for sku in sampled_skus:
                     on_hand = int(self.rng.integers(0, 5000))
-                    reserved = int(self.rng.integers(0, min(on_hand, 200)))
+                    reserved = int(self.rng.integers(0, max(1, min(on_hand, 200))))
                     rows.append({
                         "id": new_uuid(),
                         "product_sku": str(sku),

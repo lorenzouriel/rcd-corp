@@ -1,6 +1,7 @@
 """Parquet output sink with optional date partitioning for RCD Corp."""
 from __future__ import annotations
 
+import time as _time
 from pathlib import Path
 
 import pandas as pd
@@ -16,7 +17,13 @@ class ParquetSink:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def write(self, table_name: str, df: pd.DataFrame, partition_col: str | None = None) -> None:
+    def write(
+        self,
+        table_name: str,
+        df: pd.DataFrame,
+        partition_col: str | None = None,
+        append: bool = False,
+    ) -> None:
         if df is None or df.empty:
             log.warning("parquet_skip_empty", table=table_name)
             return
@@ -32,7 +39,10 @@ class ParquetSink:
                 partition_cols=[partition_col],
                 existing_data_behavior="overwrite_or_ignore",
             )
+        elif append:
+            ts_ms = int(_time.time() * 1000)
+            pq.write_table(table, str(out_dir / f"stream_{ts_ms}.parquet"))
         else:
             pq.write_table(table, str(out_dir / "data.parquet"))
 
-        log.info("parquet_written", table=table_name, rows=len(df), path=str(out_dir))
+        log.info("parquet_written", table=table_name, rows=len(df), path=str(out_dir), append=append)

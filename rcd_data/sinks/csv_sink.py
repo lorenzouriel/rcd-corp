@@ -14,10 +14,19 @@ class CSVSink:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def write(self, table_name: str, df: pd.DataFrame, partition_col: str | None = None) -> None:
+    def write(
+        self,
+        table_name: str,
+        df: pd.DataFrame,
+        partition_col: str | None = None,
+        append: bool = False,
+    ) -> None:
         if df is None or df.empty:
             log.warning("csv_skip_empty", table=table_name)
             return
         out_path = self.base_path / f"{table_name}.csv"
-        df.to_csv(out_path, index=False)
-        log.info("csv_written", table=table_name, rows=len(df), path=str(out_path))
+        if append and out_path.exists():
+            df.to_csv(out_path, mode="a", header=False, index=False)
+        else:
+            df.to_csv(out_path, index=False)
+        log.info("csv_written", table=table_name, rows=len(df), path=str(out_path), append=append)

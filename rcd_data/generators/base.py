@@ -4,8 +4,7 @@ from __future__ import annotations
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import date, timedelta
-from pathlib import Path
+from datetime import date, datetime, timedelta
 from typing import Iterator
 
 import numpy as np
@@ -183,6 +182,41 @@ class BaseGenerator(ABC):
         """
         yield self.generate(cache, profile, crisis_days)
 
+    def generate_batch(
+        self,
+        cache: MasterCache,
+        n_rows: int,
+        start: datetime,
+        end: datetime,
+        rng: np.random.Generator,
+    ) -> dict[str, pd.DataFrame]:
+        """Generate ~n_rows rows with timestamps anchored to [start, end].
+
+        Default delegates to generate() via a narrow ProfileConfig.
+        Override in individual generators for exact row counts or precise
+        timestamp anchoring.
+
+        Uses a 60-day window ending at end.date() so that generators which
+        subtract a 30-day buffer from profile.end don't produce invalid ranges.
+        """
+        window_days = 60
+        window_start = end.date() - timedelta(days=window_days - 1)
+        narrow = ProfileConfig(
+            name="stream",
+            n_customers=max(1, len(cache.customer_ids)),
+            n_products=max(1, len(cache.product_skus)),
+            n_employees=max(1, len(cache.employee_ids)),
+            n_orders=n_rows,
+            n_stores=max(1, len(cache.store_ids)),
+            n_warehouses=max(1, len(cache.warehouse_ids)),
+            n_suppliers=max(1, len(cache.supplier_ids)),
+            date_range_days=window_days,
+            crisis_freq_per_month=0,
+            chunk_size=n_rows,
+            start_date=window_start.isoformat(),
+        )
+        return self.generate(cache, narrow, crisis_days=[])
+
 
 class SinkDispatcher:
     """Routes DataFrames to one or more active sinks."""
@@ -231,3 +265,15 @@ class SinkDispatcher:
                 if is_high_vol and self._profile == "loadtest" and sink_type != "parquet":
                     continue
                 sink.write(table_name, df, part_col)  # type: ignore[union-attr]
+
+    def append_all(self, tables: dict[str, pd.DataFrame]) -> None:
+        """Write tables in append mode. Postgres sink is skipped (not supported in stream)."""
+        for table_name, df in tables.items():
+            if df is None or df.empty:
+                continue
+            is_high_vol = table_name in HIGH_VOLUME_TABLES
+            part_col: str | None = PARTITION_COL if is_high_vol and "date" in df.columns else None
+            for sink_type, sink in self._sinks:
+                if sink_type == "postgres":
+                    continue
+                sink.write(table_name, df, part_col, append=True)  # type: ignore[union-attr]

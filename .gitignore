@@ -2,3 +2,4 @@ output/
 .venv/
 __pycache__/
 rcd_data.egg-info/
+.claude/

@@ -4,11 +4,12 @@ from __future__ import annotations
 import random
 import sys
 import time
-from datetime import date
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Optional
 
 import numpy as np
+import pandas as pd
 import structlog
 import typer
 from faker import Faker
@@ -23,8 +24,8 @@ from .generators import (
     ObservabilityGenerator,
     SalesGenerator,
     SocialMediaGenerator,
-    SupportGenerator,
     SupplyChainGenerator,
+    SupportGenerator,
 )
 from .generators.base import MasterCache, SinkDispatcher, load_profile
 from .utils.time_utils import generate_crisis_days
@@ -69,6 +70,43 @@ def _seed_all(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     Faker.seed(seed)
+
+
+_CACHE_TABLES = [
+    "customers", "products", "employees", "suppliers",
+    "stores", "warehouses", "fx_rates",
+    "campaigns", "orders",
+]
+_REQUIRED_CACHE_TABLES = {
+    "customers", "products", "employees", "suppliers", "stores", "warehouses",
+}
+
+
+def _load_master_cache(full_config: dict) -> MasterCache:
+    out = full_config.get("output", {})
+    parquet_base = Path(out.get("parquet_path", "./output/parquet"))
+    csv_base = Path(out.get("csv_path", "./output/csv"))
+
+    tables: dict[str, pd.DataFrame] = {}
+    for table_name in _CACHE_TABLES:
+        parquet_file = parquet_base / table_name / "data.parquet"
+        csv_file = csv_base / f"{table_name}.csv"
+        if parquet_file.exists():
+            tables[table_name] = pd.read_parquet(parquet_file)
+        elif csv_file.exists():
+            tables[table_name] = pd.read_csv(csv_file)
+
+    missing = _REQUIRED_CACHE_TABLES - set(tables.keys())
+    if missing:
+        typer.echo(
+            f"Missing master tables: {sorted(missing)}. Run 'rcd-data generate' first.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    cache = MasterCache()
+    cache.populate(tables)
+    return cache
 
 
 def _resolve_domains(only: str | None) -> list[str]:
@@ -205,7 +243,76 @@ def info(
             f"  {name:12s}  customers={p['n_customers']:>8,}  orders={p['n_orders']:>12,}  days={p['date_range_days']}"
         )
     typer.echo(f"\nDomains: {', '.join(DOMAIN_MAP.keys())}")
-    typer.echo(f"Sinks:   csv | parquet | postgres | all")
+    typer.echo("Sinks:   csv | parquet | postgres | all")
+
+
+@app.command()
+def stream(
+    profile: Annotated[str, typer.Option("--profile", "-p", help="Profile name for FK pool sizing")] = "demo",
+    seed: Annotated[int, typer.Option("--seed", "-s", help="Base random seed")] = 42,
+    sink: Annotated[str, typer.Option("--sink", help="Output sink: csv | parquet")] = "parquet",
+    rows_per_tick: Annotated[int, typer.Option("--rows-per-tick", "-r", help="Rows per domain per tick")] = 25,
+    interval: Annotated[int, typer.Option("--interval", "-i", help="Seconds between ticks; 0=fire once and exit")] = 300,
+    config: Annotated[str, typer.Option("--config", "-c", help="Path to config.yaml")] = DEFAULT_CONFIG,
+) -> None:
+    """Stream synthetic rows to existing output every --interval seconds."""
+    if sink == "postgres":
+        typer.echo("Postgres sink is not supported in stream mode.", err=True)
+        raise typer.Exit(1)
+
+    _seed_all(seed)
+    profile_cfg, full_config = load_profile(config, profile)
+    dispatcher = SinkDispatcher.from_flag(sink, profile_cfg, full_config)
+
+    typer.echo("Loading master cache from existing output...")
+    cache = _load_master_cache(full_config)
+    typer.echo(
+        f"Streaming {rows_per_tick} rows/domain every {interval}s across "
+        f"{len(FACT_DOMAINS)} domains. Ctrl+C to stop."
+    )
+
+    tick = 0
+    try:
+        while True:
+            t0 = time.perf_counter()
+            now_end = datetime.now()
+            now_start = now_end - timedelta(seconds=max(interval, 60))
+            tick_rng = np.random.default_rng(seed + tick)
+
+            all_tables: dict[str, pd.DataFrame] = {}
+            for domain_name in FACT_DOMAINS:
+                gen = DOMAIN_MAP[domain_name](seed=seed + tick)
+                # Snapshot FK arrays that generators may overwrite during generate()
+                saved_order_ids = cache.order_ids.copy()
+                saved_campaign_ids = cache.campaign_ids.copy()
+                tables = gen.generate_batch(cache, rows_per_tick, now_start, now_end, tick_rng)
+                # Restore snapshot + extend with any new IDs generated this tick
+                if "orders" in tables and not tables["orders"].empty:
+                    new_ids = tables["orders"]["id"].to_numpy().astype("U36")
+                    cache.order_ids = np.concatenate([saved_order_ids, new_ids])
+                else:
+                    cache.order_ids = saved_order_ids
+                if "campaigns" in tables and not tables["campaigns"].empty:
+                    new_cids = tables["campaigns"]["id"].to_numpy().astype("U36")
+                    cache.campaign_ids = np.concatenate([saved_campaign_ids, new_cids])
+                else:
+                    cache.campaign_ids = saved_campaign_ids
+                all_tables.update(tables)
+
+            dispatcher.append_all(all_tables)
+            elapsed = round(time.perf_counter() - t0, 2)
+            log.info("tick_complete", tick=tick, rows_per_domain=rows_per_tick, elapsed_s=elapsed)
+            typer.echo(f"  tick={tick}  elapsed={elapsed}s")
+            tick += 1
+
+            if interval == 0:
+                break
+            remaining = interval - (time.perf_counter() - t0)
+            if remaining > 0:
+                time.sleep(remaining)
+
+    except KeyboardInterrupt:
+        typer.echo(f"\nStopped after {tick} tick(s).")
 
 
 if __name__ == "__main__":
