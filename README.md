@@ -26,6 +26,9 @@ rcd-data generate --profile standard --sink all
 # Generate only social media and support domains
 rcd-data generate --profile demo --only social_media,support --sink csv
 
+# Stream live batches — appends 25 rows/domain every 5 min to existing output
+rcd-data stream --profile demo --seed 42 --rows-per-tick 25 --interval 300
+
 # Validate referential integrity
 RCD_OUTPUT_DIR=./output rcd-data validate
 
@@ -61,8 +64,9 @@ docker compose --profile run up --build
 ## CLI Reference
 ```
 rcd-data generate [OPTIONS]
+rcd-data stream   [OPTIONS]
 rcd-data validate [OPTIONS]
-rcd-data info [OPTIONS]
+rcd-data info     [OPTIONS]
 ```
 
 ### `generate` options
@@ -73,6 +77,30 @@ rcd-data info [OPTIONS]
 | `--sink` | `parquet` | Output sink: `csv` · `parquet` · `postgres` · `all` |
 | `--only` | (all) | Comma-separated domain list to generate selectively |
 | `--config` | built-in | Path to a custom `config.yaml` |
+
+### `stream` options
+
+Requires a prior `generate` run — reads the existing output to rebuild dimension FK tables, then continuously appends small batches to the same directory.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--profile` | `demo` | Profile to use for FK pool sizing |
+| `--seed` | `42` | Base seed; tick N uses `seed + N` to avoid duplicate PKs |
+| `--sink` | `parquet` | Output sink: `csv` · `parquet` (Postgres not supported) |
+| `--rows-per-tick` | `25` | Approximate rows per domain per tick |
+| `--interval` | `300` | Seconds between ticks; `0` = fire once and exit |
+| `--config` | built-in | Path to a custom `config.yaml` |
+
+```bash
+# One-time setup
+rcd-data generate --profile demo --seed 42 --sink parquet
+
+# Live streaming (runs until Ctrl+C)
+rcd-data stream --profile demo --seed 42 --rows-per-tick 25 --interval 300
+
+# Single tick — useful for testing
+rcd-data stream --profile demo --seed 42 --interval 0
+```
 
 ### `validate` options
 | Option | Default | Description |
@@ -100,19 +128,21 @@ supply_chain  manufacturing  hr  support  observability
 output/
 ├── csv/
 │   ├── customers.csv
-│   ├── orders.csv
+│   ├── orders.csv          ← stream appends rows, header preserved
 │   └── ...
 └── parquet/
     ├── customers/
     │   └── data.parquet
     ├── orders/
-    │   └── date=2024-01-01/
-    │       └── part-0.parquet
+    │   ├── data.parquet           ← original from generate
+    │   └── stream_<ts>.parquet    ← appended by stream (one file per tick)
     ├── machine_telemetry/
-    │   └── date=2024-01-01/
+    │   └── date=2024-01-01/       ← date-partitioned; stream adds new partitions
     │       └── ...
     └── ...
 ```
+
+Parquet consumers (`pd.read_parquet(dir)`, DuckDB, Spark) automatically read all files in a table directory, so historical and streamed rows are always combined.
 
 ## Schema Reference
 ### Master Data
@@ -286,9 +316,9 @@ rcd-data generate --profile my_profile --sink parquet
 ```
 rcd_data/
 ├── config.yaml              # Volume profiles and company config
-├── main.py                  # CLI entry point (typer)
+├── main.py                  # CLI entry point (typer) — generate, stream, validate, info
 ├── generators/
-│   ├── base.py              # BaseGenerator, MasterCache, ProfileConfig, SinkDispatcher
+│   ├── base.py              # BaseGenerator (+ generate_batch), MasterCache, ProfileConfig, SinkDispatcher (+ append_all)
 │   ├── master_data.py       # customers, products, employees, suppliers, stores, warehouses, fx_rates
 │   ├── sales.py             # orders, order_items, payments, web_sessions, cart_events
 │   ├── finance.py           # invoices, transactions, expenses, budgets, rcd_card
@@ -306,8 +336,8 @@ rcd_data/
 │   ├── identifiers.py       # CPF/CNPJ check digits, SKU, tracking numbers
 │   └── fx.py                # daily FX rate random walk
 ├── sinks/
-│   ├── csv_sink.py
-│   ├── parquet_sink.py      # date-partitioned via PyArrow
+│   ├── csv_sink.py          # supports append mode (stream command)
+│   ├── parquet_sink.py      # date-partitioned via PyArrow; stream_{ts}.parquet for append
 │   └── postgres_sink.py     # SQLAlchemy + psycopg2
 └── tests/
     └── test_referential_integrity.py
