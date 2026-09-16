@@ -14,10 +14,8 @@ from pydantic import BaseModel
 
 from ..sinks.csv_sink import CSVSink
 from ..sinks.jsonl_sink import JSONLSink
-from ..sinks.mongodb_sink import MongoDBSink
 from ..sinks.parquet_sink import ParquetSink
 from ..sinks.postgres_sink import PostgresSink
-from ..sinks.redis_sink import RedisSink
 from ..sinks.sqlserver_sink import SQLServerSink
 from ..sinks.xlsx_sink import XLSXSink
 
@@ -243,8 +241,6 @@ class SinkDispatcher:
         xlsx_path = output.get("xlsx_path", "./output/xlsx")
         postgres_url = output.get("postgres_url") or os.environ.get("RCD_POSTGRES_URL")
         sqlserver_url = output.get("sqlserver_url") or os.environ.get("RCD_SQLSERVER_URL")
-        mongodb_url = output.get("mongodb_url") or os.environ.get("RCD_MONGODB_URL")
-        redis_url = output.get("redis_url") or os.environ.get("RCD_REDIS_URL")
 
         sinks: list[tuple[str, object]] = []
 
@@ -260,15 +256,10 @@ class SinkDispatcher:
             sinks.append(("postgres", PostgresSink(postgres_url)))
         if flag in ("sqlserver", "all"):
             sinks.append(("sqlserver", SQLServerSink(sqlserver_url)))
-        if flag in ("mongodb", "all"):
-            sinks.append(("mongodb", MongoDBSink(mongodb_url)))
-        if flag in ("redis", "all"):
-            sinks.append(("redis", RedisSink(redis_url)))
 
         if not sinks:
             raise ValueError(
-                f"Unknown --sink value '{flag}'. Use: csv | parquet | jsonl | xlsx | "
-                "postgres | sqlserver | mongodb | redis | all"
+                f"Unknown --sink value '{flag}'. Use: csv | parquet | jsonl | xlsx | postgres | sqlserver | all"
             )
 
         return cls(sinks, cfg.name)

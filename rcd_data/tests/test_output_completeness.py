@@ -17,7 +17,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from ._sink_helpers import REDIS_STREAM_PREFIX, get_db_engine, get_mongo_db, get_redis_client
+from ._sink_helpers import get_db_engine
 
 OUTPUT_DIR = Path(os.environ.get("RCD_OUTPUT_DIR", "./output"))
 SINK = os.environ.get("RCD_SINK", "parquet")
@@ -56,7 +56,6 @@ LOADTEST_ONLY_TABLES = {"machine_telemetry", "app_logs", "api_requests"}
 
 _SINK_DIRS = {"csv": "csv", "parquet": "parquet", "jsonl": "jsonl", "xlsx": "xlsx"}
 _DB_SINKS = {"postgres", "sqlserver"}
-_NOSQL_SINKS = {"mongodb", "redis"}
 
 
 def _table_path(table: str) -> Path:
@@ -93,17 +92,6 @@ def _db_row_count(table: str) -> int | None:
         return conn.execute(text(f"SELECT COUNT(*) FROM {open_q}{table}{close_q}")).scalar()
 
 
-def _nosql_row_count(table: str) -> int | None:
-    """Return the row count for `table` in the mongodb/redis sink, or None if missing."""
-    if SINK == "mongodb":
-        count = get_mongo_db()[table].estimated_document_count()
-        return count if count > 0 else None
-    if SINK == "redis":
-        count = get_redis_client().xlen(f"{REDIS_STREAM_PREFIX}{table}")
-        return count if count > 0 else None
-    raise ValueError(f"Unsupported RCD_SINK '{SINK}'")
-
-
 class TestAllDatasetsGenerated:
     @pytest.mark.parametrize("table", EXPECTED_TABLES)
     def test_table_exists_and_is_non_empty(self, table: str):
@@ -111,11 +99,6 @@ class TestAllDatasetsGenerated:
             rows = _db_row_count(table)
             assert rows is not None, f"Missing table '{table}' in {SINK} database"
             assert rows > 0, f"'{table}' in {SINK} database has zero rows"
-            return
-
-        if SINK in _NOSQL_SINKS:
-            rows = _nosql_row_count(table)
-            assert rows is not None, f"Missing or empty table '{table}' in {SINK} sink"
             return
 
         path = _table_path(table)
@@ -134,28 +117,6 @@ class TestAllDatasetsGenerated:
             extra = found - set(EXPECTED_TABLES)
             assert not extra, (
                 f"Unexpected tables in {SINK} database not tracked in EXPECTED_TABLES: "
-                f"{sorted(extra)}. Update EXPECTED_TABLES in this test if this is intentional."
-            )
-            return
-
-        if SINK == "mongodb":
-            found = set(get_mongo_db().list_collection_names())
-            found -= LOADTEST_ONLY_TABLES
-            extra = found - set(EXPECTED_TABLES)
-            assert not extra, (
-                f"Unexpected collections in mongodb not tracked in EXPECTED_TABLES: "
-                f"{sorted(extra)}. Update EXPECTED_TABLES in this test if this is intentional."
-            )
-            return
-
-        if SINK == "redis":
-            client = get_redis_client()
-            keys = client.scan_iter(match=f"{REDIS_STREAM_PREFIX}*", _type="stream")
-            found = {k[len(REDIS_STREAM_PREFIX):] for k in keys}
-            found -= LOADTEST_ONLY_TABLES
-            extra = found - set(EXPECTED_TABLES)
-            assert not extra, (
-                f"Unexpected streams in redis not tracked in EXPECTED_TABLES: "
                 f"{sorted(extra)}. Update EXPECTED_TABLES in this test if this is intentional."
             )
             return

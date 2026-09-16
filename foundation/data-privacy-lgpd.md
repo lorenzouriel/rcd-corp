@@ -131,7 +131,7 @@ Deferred to a dedicated `security-policy.md` (not yet written). Interim
 pointers to what already exists in this repo:
 
 - DB sinks must bind to a specific interface (Tailscale IP), never `0.0.0.0`
-  — see `docs/DEPLOY.md` and the CLAUDE.md pitfall on `POSTGRES_BIND`/`SQLSERVER_BIND`.
+  — see `DEPLOY.md` and the CLAUDE.md pitfall on `POSTGRES_BIND`/`SQLSERVER_BIND`.
 - `security_events` (in `observability.py`) is the source table for any
   future intrusion/anomaly monitoring.
 
