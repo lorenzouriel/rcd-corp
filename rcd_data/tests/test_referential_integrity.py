@@ -14,15 +14,29 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from ._sink_helpers import get_db_engine
+from ._sink_helpers import REDIS_STREAM_PREFIX, get_db_engine, get_mongo_db, get_redis_client
 
 OUTPUT_DIR = os.environ.get("RCD_OUTPUT_DIR", "./output")
 FORMAT = os.environ.get("RCD_OUTPUT_FORMAT", "parquet")
 
 
 def _load(table: str) -> pd.DataFrame:
-    """Load a table from the output directory or database."""
-    if FORMAT == "parquet":
+    """Load a table from the output directory, database, or NoSQL sink."""
+    if FORMAT == "mongodb":
+        collection = get_mongo_db()[table]
+        if collection.estimated_document_count() == 0:
+            pytest.skip(f"Table '{table}' not found in mongodb database")
+        return pd.DataFrame(list(collection.find({}, {"_id": 0})))
+    elif FORMAT == "redis":
+        import json
+
+        client = get_redis_client()
+        key = f"{REDIS_STREAM_PREFIX}{table}"
+        entries = client.xrange(key)
+        if not entries:
+            pytest.skip(f"Table '{table}' not found in redis stream '{key}'")
+        return pd.DataFrame([json.loads(fields["data"]) for _, fields in entries])
+    elif FORMAT == "parquet":
         parquet_dir = Path(OUTPUT_DIR) / "parquet" / table
         if not parquet_dir.exists():
             pytest.skip(f"Table '{table}' not found at {parquet_dir}")

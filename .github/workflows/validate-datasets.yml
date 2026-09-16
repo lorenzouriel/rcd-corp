@@ -91,6 +91,11 @@ jobs:
           RCD_OUTPUT_FORMAT: postgres
         run: python -m pytest rcd_data/tests/test_referential_integrity.py -v
 
+      - name: Test the Query API (REST + GraphQL)
+        env:
+          RCD_API_KEY: ci-test-key
+        run: python -m pytest rcd_data/tests/test_api.py -v
+
   generate-and-validate-sqlserver:
     name: generate (sqlserver)
     runs-on: ubuntu-latest
@@ -151,4 +156,106 @@ jobs:
       - name: Validate referential integrity
         env:
           RCD_OUTPUT_FORMAT: sqlserver
+        run: python -m pytest rcd_data/tests/test_referential_integrity.py -v
+
+  generate-and-validate-mongodb:
+    name: generate (mongodb)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mongodb:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: rcd
+          MONGO_INITDB_ROOT_PASSWORD: rcd
+        ports:
+          - 27017:27017
+    env:
+      RCD_MONGODB_URL: "mongodb://rcd:rcd@localhost:27017/rcd_corp?authSource=admin"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install rcd-data
+        run: pip install -e .
+
+      - name: Wait for MongoDB
+        run: |
+          python -c "
+          import time
+          from pymongo import MongoClient
+          from pymongo.errors import PyMongoError
+
+          url = 'mongodb://rcd:rcd@localhost:27017/?authSource=admin'
+          for i in range(30):
+              try:
+                  MongoClient(url, serverSelectionTimeoutMS=2000).admin.command('ping')
+                  print('MongoDB is up')
+                  break
+              except PyMongoError:
+                  print(f'Waiting for MongoDB... ({i})')
+                  time.sleep(2)
+          else:
+              raise SystemExit('MongoDB did not become ready in time')
+          "
+
+      - name: Generate demo dataset (mongodb)
+        run: rcd-data generate --profile demo --seed 42 --sink mongodb
+
+      - name: Validate every table was generated
+        env:
+          RCD_SINK: mongodb
+        run: python -m pytest rcd_data/tests/test_output_completeness.py -v
+
+      - name: Validate referential integrity
+        env:
+          RCD_OUTPUT_FORMAT: mongodb
+        run: python -m pytest rcd_data/tests/test_referential_integrity.py -v
+
+  generate-and-validate-redis:
+    name: generate (redis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RCD_REDIS_URL: "redis://localhost:6379/0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install rcd-data
+        run: pip install -e .
+
+      - name: Generate demo dataset (redis)
+        run: rcd-data generate --profile demo --seed 42 --sink redis
+
+      - name: Validate every table was generated
+        env:
+          RCD_SINK: redis
+        run: python -m pytest rcd_data/tests/test_output_completeness.py -v
+
+      - name: Validate referential integrity
+        env:
+          RCD_OUTPUT_FORMAT: redis
         run: python -m pytest rcd_data/tests/test_referential_integrity.py -v

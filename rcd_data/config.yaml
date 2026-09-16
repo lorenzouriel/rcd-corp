@@ -7,8 +7,15 @@ output:
   partition_col: "date"
   # Set via env var RCD_POSTGRES_URL or here (not recommended for credentials)
   # postgres_url: "postgresql+psycopg2://rcd:rcd@localhost:5432/rcd_corp"
+
   # Set via env var RCD_SQLSERVER_URL or here (not recommended for credentials)
   # sqlserver_url: "mssql+pyodbc://rcd:rcd@localhost:1433/rcd_corp?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+  
+  # Set via env var RCD_MONGODB_URL or here (not recommended for credentials)
+  # mongodb_url: "mongodb://rcd:rcd@localhost:27017/rcd_corp?authSource=admin"
+
+  # Set via env var RCD_REDIS_URL or here (not recommended for credentials)
+  # redis_url: "redis://localhost:6379/0"
 
 profiles:
   demo:

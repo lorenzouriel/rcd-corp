@@ -2,9 +2,11 @@
 
 Turns the local CLI into a standing service on a home-lab box (e.g. an
 Ubuntu server managed via Cockpit): a `demo`-profile dataset is generated
-once into every sink (CSV, Parquet, JSONL, XLSX, Postgres, SQL Server), then
-`rcd-data stream --sink all` keeps appending fresh rows to *all* of them
-continuously.
+once into every sink (CSV, Parquet, JSONL, XLSX, Postgres, SQL Server,
+MongoDB, Redis), then `rcd-data stream --sink all` keeps appending fresh
+rows to *all* of them continuously, while the `api` service serves REST +
+GraphQL over the `postgres` sink the whole time. (Redis is the exception to
+"keeps appending" — see the sink-specific note in Ongoing operations below.)
 
 **This is not a public-internet deployment.** A home network doesn't have
 the same exposure profile as a rented VPS — no stable public IP (often
@@ -51,16 +53,17 @@ cp .env.example .env
 ```
 
 Edit `.env`:
-- Set strong `POSTGRES_PASSWORD` and `MSSQL_SA_PASSWORD` (generate with
-  `openssl rand -base64 24`) — Tailscale controls *reachability*, not
-  authentication, so weak DB passwords are still a real risk to anyone else
-  on your tailnet.
-- Set `POSTGRES_BIND` and `SQLSERVER_BIND` to the server's Tailscale IP from
-  step 1 (e.g. `100.101.102.103`), and `SQLSERVER_PORT=1433` (the `14330`
-  default only exists to dodge a local Windows dev conflict — irrelevant on
-  a Linux host). **Do not set either `*_BIND` to `0.0.0.0`** — binding to
-  the Tailscale IP specifically is what keeps the DB off the LAN and off
-  the internet; there's nothing else enforcing that boundary.
+- Set strong `POSTGRES_PASSWORD`, `MSSQL_SA_PASSWORD`, `MONGO_PASSWORD`,
+  `REDIS_PASSWORD`, and `API_KEY` (generate with `openssl rand -base64 24`)
+  — Tailscale controls *reachability*, not authentication, so weak secrets
+  are still a real risk to anyone else on your tailnet.
+- Set `POSTGRES_BIND`, `SQLSERVER_BIND`, `MONGO_BIND`, `REDIS_BIND`, and
+  `API_BIND` to the server's Tailscale IP from step 1 (e.g.
+  `100.101.102.103`), and `SQLSERVER_PORT=1433` (the `14330` default only
+  exists to dodge a local Windows dev conflict — irrelevant on a Linux
+  host). **Do not set any `*_BIND` to `0.0.0.0`** — binding to the Tailscale
+  IP specifically is what keeps each service off the LAN and off the
+  internet; there's nothing else enforcing that boundary.
 
 ## 4. Bring the stack up
 
@@ -68,10 +71,12 @@ Edit `.env`:
 docker compose --profile run up -d --build
 ```
 
-This runs, in order: `postgres` + `sqlserver` (healthy) → `sqlserver-init`
-(creates the `rcd_corp` DB) → `generator` (one-shot `generate --sink all`,
-populates both DBs + `./output`) → `streamer` (continuous `stream --sink
-all`, appends to `./output` and both databases every tick).
+This runs, in order: `postgres` + `sqlserver` + `mongodb` + `redis`
+(healthy) → `sqlserver-init` (creates the `rcd_corp` DB) → `generator`
+(one-shot `generate --sink all`, populates all four DBs + `./output`) →
+`api` (REST + GraphQL over the `postgres` sink, waits on `generator`) and
+`streamer` (continuous `stream --sink all`, appends to `./output` and all
+four databases every tick) start in parallel once `generator` completes.
 
 ## 5. Connect from another device
 
@@ -81,6 +86,9 @@ IP:
 ```bash
 psql "postgresql://rcd:<pw>@100.101.102.103:5432/rcd_corp"
 sqlcmd -S 100.101.102.103,1433 -U sa -P <pw> -C
+mongosh "mongodb://rcd:<pw>@100.101.102.103:27017/rcd_corp?authSource=admin"
+redis-cli -h 100.101.102.103 -a <pw>
+curl -H "X-API-Key: <key>" "http://100.101.102.103:8000/api/v1/orders?limit=5"
 ```
 
 ## 6. (Recommended) Restrict which tailnet devices can reach the DB ports
@@ -93,7 +101,7 @@ tailnet policy file (admin console → Access Controls):
 {
   "tagOwners": { "tag:db-server": ["autogroup:admin"] },
   "acls": [
-    { "action": "accept", "src": ["your-user-or-device-tag"], "dst": ["tag:db-server:5432,1433"] }
+    { "action": "accept", "src": ["your-user-or-device-tag"], "dst": ["tag:db-server:5432,1433,27017,6379,8000"] }
   ]
 }
 ```
@@ -103,13 +111,16 @@ Tag the server: `sudo tailscale up --advertise-tags=tag:db-server`.
 
 ```bash
 docker compose ps
-# postgres/sqlserver: healthy · generator: exited (0) · streamer: running
+# postgres/sqlserver/mongodb/redis/api: healthy · generator: exited (0) · streamer: running
 ```
 
 From a device **on your tailnet**:
 ```bash
 psql "postgresql://rcd:<pw>@<tailscale-ip>:5432/rcd_corp" -c '\dt'
 sqlcmd -S <tailscale-ip>,1433 -U sa -P <pw> -C -Q "SELECT COUNT(*) FROM customers"
+mongosh "mongodb://rcd:<pw>@<tailscale-ip>:27017/rcd_corp?authSource=admin" --eval "db.customers.countDocuments()"
+redis-cli -h <tailscale-ip> -a <pw> XLEN rcd:orders
+curl -H "X-API-Key: <key>" "http://<tailscale-ip>:8000/api/v1/customers?limit=1"
 ```
 
 From a device **not on your tailnet**, confirm the ports are unreachable —
@@ -126,12 +137,16 @@ docker compose logs -f streamer
 ## Ongoing operations
 
 - **Unbounded growth**: `stream` never stops appending — a new Parquet file
-  per tick per table, CSV/JSONL grow forever, and Postgres/SQL Server rows
-  accumulate with no dedup or pruning. Watch `df -h` on `./output` and the
-  DB volumes; there's no retention built in yet — a cron job deleting old
-  `stream_*.parquet` files and/or a periodic `DELETE ... WHERE created_at <
-  now() - interval` on the DB tables is the straightforward follow-up if
-  this becomes a problem.
+  per tick per table, CSV/JSONL grow forever, and Postgres/SQL Server/MongoDB
+  rows accumulate with no dedup or pruning. Watch `df -h` on `./output` and
+  the DB volumes; there's no retention built in yet — a cron job deleting
+  old `stream_*.parquet` files and/or a periodic `DELETE ... WHERE
+  created_at < now() - interval` on the DB tables is the straightforward
+  follow-up if this becomes a problem. **Redis is the one exception**: each
+  table's stream is capped at `RCD_REDIS_STREAM_MAXLEN` (default 100,000
+  entries, approximate trim) and self-trims on every write, so it won't grow
+  disk unbounded the way the other sinks do — but it also means Redis never
+  holds the full history, only a recent window.
 - **Rotating secrets**: edit `.env`, then `docker compose up -d` to recreate
   the affected containers.
 - **Cockpit**: if you're managing this box via Cockpit (`:9090`), keep that
