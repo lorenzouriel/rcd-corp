@@ -32,8 +32,7 @@ class Base(DeclarativeBase):
     pass
 
 
-# ── Master data ──────────────────────────────────────────────────────────
-
+# Master data 
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -126,8 +125,7 @@ class Warehouse(Base):
     type: Mapped[str | None] = mapped_column(String)
 
 
-# ── Sales ─────────────────────────────────────────────────────────────────
-
+# Sales 
 
 class Order(Base):
     __tablename__ = "orders"
@@ -177,8 +175,7 @@ class Payment(Base):
     currency: Mapped[str | None] = mapped_column(String)
 
 
-# ── Finance ───────────────────────────────────────────────────────────────
-
+# Finance
 
 class Invoice(Base):
     __tablename__ = "invoices"
@@ -196,8 +193,7 @@ class Invoice(Base):
     customer: Mapped[Customer | None] = relationship()
 
 
-# ── Support ───────────────────────────────────────────────────────────────
-
+# Support
 
 class Ticket(Base):
     __tablename__ = "tickets"
@@ -211,10 +207,6 @@ class Ticket(Base):
     priority: Mapped[str | None] = mapped_column(String)
     sentiment: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
-    # Generator quirk (see support.py::_build_tickets): resolved_at is built
-    # from `date` objects + timedelta, not `random_datetime` — confirmed
-    # against a real generated Postgres schema (`\d tickets`) to actually be
-    # `date`, not `timestamp`, despite the "resolved_at" name.
     resolved_at: Mapped[date | None] = mapped_column(Date)
     csat_score: Mapped[float | None] = mapped_column(Float)
     agent_id: Mapped[str | None] = mapped_column(ForeignKey("employees.id"))
@@ -223,7 +215,7 @@ class Ticket(Base):
     agent: Mapped[Employee | None] = relationship()
 
 
-# ── Marketing ─────────────────────────────────────────────────────────────
+# Marketing 
 
 
 class Campaign(Base):
@@ -261,7 +253,7 @@ class Lead(Base):
     owner: Mapped[Employee | None] = relationship()
 
 
-# ── Supply chain ──────────────────────────────────────────────────────────
+# Supply chain
 
 
 class Return(Base):

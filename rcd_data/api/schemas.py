@@ -28,7 +28,7 @@ class _ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# ── Master data ──────────────────────────────────────────────────────────
+# Master data 
 
 
 class CustomerOut(_ORMModel):
@@ -110,8 +110,7 @@ class SupplierOut(_ORMModel):
     category: str | None
 
 
-# ── Sales ─────────────────────────────────────────────────────────────────
-
+# Sales 
 
 class OrderOut(_ORMModel):
     id: str
@@ -152,8 +151,7 @@ class PaymentOut(_ORMModel):
     currency: str | None
 
 
-# ── Finance ───────────────────────────────────────────────────────────────
-
+# Finance 
 
 class InvoiceOut(_ORMModel):
     id: str
@@ -167,8 +165,7 @@ class InvoiceOut(_ORMModel):
     payment_method: str | None
 
 
-# ── Support ───────────────────────────────────────────────────────────────
-
+# Support
 
 class TicketOut(_ORMModel):
     id: str
@@ -185,8 +182,7 @@ class TicketOut(_ORMModel):
     agent_id: str | None
 
 
-# ── Marketing ─────────────────────────────────────────────────────────────
-
+# Marketing 
 
 class CampaignOut(_ORMModel):
     id: str
@@ -215,8 +211,7 @@ class LeadOut(_ORMModel):
     owner_employee_id: str | None
 
 
-# ── Supply chain ──────────────────────────────────────────────────────────
-
+# Supply chain
 
 class ReturnOut(_ORMModel):
     id: str

@@ -19,10 +19,6 @@ app = FastAPI(
     description="REST + GraphQL query surface over RCD Corp's generated Postgres data.",
 )
 
-# This is a demo/query tool whose access control is the network boundary
-# (bind interface / Tailscale, see DEPLOY.md) plus the shared API key, same
-# posture as every DB sink in this project — permissive CORS isn't a gap to
-# close at the app layer.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

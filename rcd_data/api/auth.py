@@ -17,8 +17,6 @@ from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
 API_KEY_HEADER_NAME = "X-API-Key"
-# Same "weak-but-documented" dev default as POSTGRES_PASSWORD=rcd elsewhere
-# in this repo — override via RCD_API_KEY for anything beyond localhost.
 DEFAULT_API_KEY = "rcd-dev-key"
 
 _header = APIKeyHeader(name=API_KEY_HEADER_NAME, auto_error=False)
