@@ -125,7 +125,7 @@ def _resolve_domains(only: str | None) -> list[str]:
 def generate(
     profile: Annotated[str, typer.Option("--profile", "-p", help="Profile: demo | standard | loadtest")] = "demo",
     seed: Annotated[int, typer.Option("--seed", "-s", help="Random seed for reproducibility")] = 42,
-    sink: Annotated[str, typer.Option("--sink", help="Output sink: csv | parquet | jsonl | xlsx | postgres | sqlserver | all")] = "parquet",
+    sink: Annotated[str, typer.Option("--sink", help="Output sink: csv | parquet | jsonl | xlsx | postgres | sqlserver | mongodb | redis | all")] = "parquet",
     only: Annotated[Optional[str], typer.Option("--only", help="Comma-separated list of domains to generate")] = None,
     config: Annotated[str, typer.Option("--config", "-c", help="Path to config.yaml")] = DEFAULT_CONFIG,
 ) -> None:
@@ -244,14 +244,14 @@ def info(
             f"  {name:12s}  customers={p['n_customers']:>8,}  orders={p['n_orders']:>12,}  days={p['date_range_days']}"
         )
     typer.echo(f"\nDomains: {', '.join(DOMAIN_MAP.keys())}")
-    typer.echo("Sinks:   csv | parquet | jsonl | xlsx | postgres | sqlserver | all")
+    typer.echo("Sinks:   csv | parquet | jsonl | xlsx | postgres | sqlserver | mongodb | redis | all")
 
 
 @app.command()
 def stream(
     profile: Annotated[str, typer.Option("--profile", "-p", help="Profile name for FK pool sizing")] = "demo",
     seed: Annotated[int, typer.Option("--seed", "-s", help="Base random seed")] = 42,
-    sink: Annotated[str, typer.Option("--sink", help="Output sink: csv | parquet | jsonl | xlsx | postgres | sqlserver | all")] = "parquet",
+    sink: Annotated[str, typer.Option("--sink", help="Output sink: csv | parquet | jsonl | xlsx | postgres | sqlserver | mongodb | redis | all")] = "parquet",
     rows_per_tick: Annotated[int, typer.Option("--rows-per-tick", "-r", help="Rows per domain per tick")] = 25,
     interval: Annotated[int, typer.Option("--interval", "-i", help="Seconds between ticks; 0=fire once and exit")] = 300,
     config: Annotated[str, typer.Option("--config", "-c", help="Path to config.yaml")] = DEFAULT_CONFIG,
@@ -310,6 +310,19 @@ def stream(
 
     except KeyboardInterrupt:
         typer.echo(f"\nStopped after {tick} tick(s).")
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option("--host", envvar="RCD_API_HOST", help="Bind host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p", envvar="RCD_API_PORT", help="Bind port")] = 8000,
+    reload: Annotated[bool, typer.Option("--reload", help="Auto-reload on code changes (dev only)")] = False,
+) -> None:
+    """Serve the REST + GraphQL query API over the postgres sink (RCD_POSTGRES_URL)."""
+    import uvicorn
+
+    typer.echo(f"Serving REST at http://{host}:{port}/api/v1 and GraphQL at http://{host}:{port}/graphql")
+    uvicorn.run("rcd_data.api.app:app", host=host, port=port, reload=reload)
 
 
 if __name__ == "__main__":

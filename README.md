@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="docs/rcd-logo.png" alt="logo" width="600">
+  <img src="docs/logos/logo-nobg.png" alt="logo" width="160">
 </div>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Python CLI that generates realistic, interconnected operational data for **RCD (Real Company Data) Corp**, a fictional mid-to-large enterprise, across **10 business domains** and **50+ tables**, writing to **CSV**, **Parquet**, **JSONL**, **XLSX**, **Postgres**, and **SQL Server** — including live streaming into every one of them.
+Python CLI that generates realistic, interconnected operational data for **RCD (Real Company Data) Corp**, a fictional mid-to-large enterprise, across **10 business domains** and **50+ tables**, writing to **CSV**, **Parquet**, **JSONL**, **XLSX**, **Postgres**, **SQL Server**, **MongoDB**, and **Redis** — including live streaming into every one of them. A **REST + GraphQL query API** (`rcd-data serve`) sits on top of the Postgres sink for querying the generated data directly.
 ```
 RCD Corp — founded 2008, HQ São Paulo (BR), offices in Mexico City, Lisbon, Miami
 ~4,200 employees · ~$1.2B annual revenue · Ticker: RCDC
@@ -63,6 +63,24 @@ $env:RCD_SQLSERVER_URL="mssql+pyodbc://sa:Rcd!Passw0rd@localhost:14330/rcd_corp?
 rcd-data generate --profile demo --sink sqlserver
 ```
 
+### With MongoDB (docker-compose)
+```bash
+docker compose up -d mongodb
+export RCD_MONGODB_URL="mongodb://rcd:rcd@localhost:27017/rcd_corp?authSource=admin"
+$env:RCD_MONGODB_URL="mongodb://rcd:rcd@localhost:27017/rcd_corp?authSource=admin"
+rcd-data generate --profile demo --sink mongodb
+```
+One collection per table; `generate` drops and refills each collection, `stream` inserts.
+
+### With Redis (docker-compose)
+```bash
+docker compose up -d redis
+export RCD_REDIS_URL="redis://:rcd@localhost:6379/0"
+$env:RCD_REDIS_URL="redis://:rcd@localhost:6379/0"
+rcd-data generate --profile demo --sink redis
+```
+Each table becomes a Redis Stream (`rcd:{table}`), one JSON-encoded entry per row, capped at `RCD_REDIS_STREAM_MAXLEN` (default 100,000, approximate trim) — a bounded recent-window sink, not full historical storage like the other sinks.
+
 ### Docker (full end-to-end)
 ```bash
 docker compose --profile run up --build
@@ -70,10 +88,10 @@ docker compose --profile run up --build
 
 ### Running as a standing service (home lab / Tailscale)
 Turns this into a standing service: generate once into every sink, then keep
-`rcd-data stream` appending to all of them (files + both databases)
+`rcd-data stream` appending to all of them (files + all four databases)
 continuously. Database access is over [Tailscale](https://tailscale.com)
 rather than a public port — no router/firewall exposure at all. See
-[DEPLOY.md](DEPLOY.md) for the full runbook. Built on the `streamer` service
+[DEPLOY.md](docs/DEPLOY.md) for the full runbook. Built on the `streamer` service
 in `docker-compose.yml` and `.env.example`.
 
 ## CLI Reference
@@ -82,6 +100,7 @@ rcd-data generate [OPTIONS]
 rcd-data stream   [OPTIONS]
 rcd-data validate [OPTIONS]
 rcd-data info     [OPTIONS]
+rcd-data serve    [OPTIONS]
 ```
 
 ### `generate` options
@@ -89,7 +108,7 @@ rcd-data info     [OPTIONS]
 |--------|---------|-------------|
 | `--profile` | `demo` | Volume profile: `demo` · `standard` · `loadtest` |
 | `--seed` | `42` | Random seed — same seed = identical output |
-| `--sink` | `parquet` | Output sink: `csv` · `parquet` · `jsonl` · `xlsx` · `postgres` · `sqlserver` · `all` |
+| `--sink` | `parquet` | Output sink: `csv` · `parquet` · `jsonl` · `xlsx` · `postgres` · `sqlserver` · `mongodb` · `redis` · `all` |
 | `--only` | (all) | Comma-separated domain list to generate selectively |
 | `--config` | built-in | Path to a custom `config.yaml` |
 
@@ -101,7 +120,7 @@ Requires a prior `generate` run — reads the existing output to rebuild dimensi
 |--------|---------|-------------|
 | `--profile` | `demo` | Profile to use for FK pool sizing |
 | `--seed` | `42` | Base seed; tick N uses `seed + N` to avoid duplicate PKs |
-| `--sink` | `parquet` | Output sink: `csv` · `parquet` · `jsonl` · `xlsx` · `postgres` · `sqlserver` · `all` |
+| `--sink` | `parquet` | Output sink: `csv` · `parquet` · `jsonl` · `xlsx` · `postgres` · `sqlserver` · `mongodb` · `redis` · `all` |
 | `--rows-per-tick` | `25` | Approximate rows per domain per tick |
 | `--interval` | `300` | Seconds between ticks; `0` = fire once and exit |
 | `--config` | built-in | Path to a custom `config.yaml` |
@@ -127,10 +146,74 @@ rcd-data stream --profile demo --seed 42 --sink all --interval 300
 | `--output` | `./output` | Path to generated output root |
 | `--format` | `parquet` | Format to validate: `parquet` · `csv` |
 
+### `serve` options
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--host` | `127.0.0.1` | Bind host (also `RCD_API_HOST`) |
+| `--port` / `-p` | `8000` | Bind port (also `RCD_API_PORT`) |
+| `--reload` | off | Auto-reload on code changes (dev only) |
+
+Reads whatever `rcd-data generate --sink postgres` last wrote via `RCD_POSTGRES_URL`. See [Query API](#query-api) below.
+
 ### Domain names for `--only`
 ```
 master_data  sales  finance  marketing  social_media
 supply_chain  manufacturing  hr  support  observability
+```
+
+## Query API
+
+REST + GraphQL over the `postgres` sink (16 core-business tables — customers, products, employees, stores, warehouses, suppliers, orders, order_items, payments, invoices, tickets, campaigns, leads, returns, shipments, purchase_orders). Requires a prior `rcd-data generate --sink postgres` and both APIs share one filter/pagination implementation (`rcd_data/api/queries/`), so REST and GraphQL can't drift in behavior.
+
+```bash
+rcd-data generate --profile demo --seed 42 --sink postgres
+rcd-data serve --host 127.0.0.1 --port 8000   # add --reload for dev
+```
+
+Every request needs an `X-API-Key` header. Defaults to `rcd-dev-key` locally (`RCD_API_KEY` env var) — override it for anything beyond localhost, same posture as `POSTGRES_PASSWORD=rcd`.
+
+```bash
+# REST
+curl -H "X-API-Key: rcd-dev-key" \
+  "http://127.0.0.1:8000/api/v1/orders?status=delivered&limit=5"
+
+# GraphQL (interactive GraphiQL IDE also at this URL in a browser)
+curl -X POST http://127.0.0.1:8000/graphql \
+  -H "X-API-Key: rcd-dev-key" -H "Content-Type: application/json" \
+  -d '{"query": "{ orders(status: \"delivered\", limit: 5) { total items { id status customer { name } } } }"}'
+```
+
+GraphQL exposes FK relationships as nested fields (`order { customer { ... } }`, `ticket { agent { ... } }`, `lead { campaign { ... } owner { ... } }`, `shipment { warehouse { ... } }`, `purchase_order { supplier { ... } warehouse { ... } }`, `invoice { customer { ... } }`), backed by per-request DataLoaders so nesting doesn't N+1. REST stays flat (FK ids only) — no `?expand=`.
+
+Every list endpoint takes `limit` (default 50, max 200 — over that is a `422`, never silently clamped), `offset`, and `total`/`includeTotal` (default on; skip it at `loadtest`-profile row counts where a `COUNT(*)` gets expensive). Filters:
+
+| Table | Filters |
+|---|---|
+| `customers` | `segment`, `country`, `ltv_tier`, `preferred_channel` |
+| `products` | `category`, `subcategory`, `brand`, `is_active`, `supplier_id` |
+| `employees` | `department`, `level`, `country`, `employment_type` |
+| `stores` | `type`, `region`, `country` |
+| `warehouses` | `type`, `country` |
+| `suppliers` | `category`, `country`, `payment_terms` |
+| `orders` | `status`, `customer_id`, `store_id`, `channel`, `created_after`/`created_before` |
+| `order_items` | `order_id`, `product_id` |
+| `payments` | `order_id`, `method`, `status`, `gateway` |
+| `invoices` | `status`, `customer_id`, `order_id`, `issued_after`/`issued_before` |
+| `tickets` | `status`, `priority`, `category`, `customer_id`, `agent_id` |
+| `campaigns` | `type`, `channel`, `status`, `target_segment` |
+| `leads` | `status`, `source`, `campaign_id`, `owner_employee_id` |
+| `returns` | `status`, `reason`, `customer_id`, `order_id` |
+| `shipments` | `status`, `carrier`, `warehouse_id`, `order_id` |
+| `purchase_orders` | `status`, `supplier_id`, `warehouse_id` |
+
+`*_after` is inclusive (`>=`), `*_before` is exclusive (`<`).
+
+### With the Query API (docker-compose)
+```bash
+docker compose up -d postgres
+export RCD_POSTGRES_URL="postgresql+psycopg2://rcd:rcd@localhost:5432/rcd_corp"
+rcd-data generate --profile demo --sink postgres
+docker compose --profile run up -d api   # or just `rcd-data serve` locally
 ```
 
 ## Volume Profiles
@@ -167,7 +250,11 @@ output/
 
 Parquet consumers (`pd.read_parquet(dir)`, DuckDB, Spark) automatically read all files in a table directory, so historical and streamed rows are always combined.
 
-If `--sink` includes `postgres`/`sqlserver`, `stream` appends directly into those tables too (plain `INSERT`, no dedup/upsert) — same growth model as the files, just rows instead of new files. There's no retention/pruning built in for any sink yet, so long-running `stream` deployments grow disk (and DB size) without bound; see [DEPLOY.md](DEPLOY.md)'s ongoing-operations section.
+If `--sink` includes `postgres`/`sqlserver`, `stream` appends directly into those tables too (plain `INSERT`, no dedup/upsert) — same growth model as the files, just rows instead of new files. There's no retention/pruning built in for any sink yet, so long-running `stream` deployments grow disk (and DB size) without bound; see [DEPLOY.md](docs/DEPLOY.md)'s ongoing-operations section.
+
+**MongoDB:** one collection per table. `generate` drops and refills each collection (`if_exists="replace"` equivalent); `stream` inserts new documents. No dedup/upsert, same as the relational DB sinks.
+
+**Redis:** each table is a Redis Stream (`rcd:{table}`, `XADD`), one JSON-encoded entry per row in a single `data` field — this is the one sink that is *not* full historical storage: streams are capped at `RCD_REDIS_STREAM_MAXLEN` (default 100,000, approximate trim), so `generate`'s replace semantics are delete-then-refill, and long-running `stream` deployments self-trim instead of growing unbounded like the other sinks.
 
 **XLSX caveat:** Excel caps a sheet at 1,048,576 rows — tables that exceed it get silently truncated with a warning, so XLSX is realistically only usable at the `demo` profile. Under `stream`, the XLSX sink also does a full read-modify-rewrite of the file on every tick, which gets slower as the file grows — avoid it for long-running streams at anything beyond `demo` scale.
 
@@ -368,11 +455,23 @@ rcd_data/
 │   ├── jsonl_sink.py        # supports append mode (stream command)
 │   ├── xlsx_sink.py         # capped at Excel's 1,048,576 rows/sheet; demo profile only
 │   ├── postgres_sink.py     # SQLAlchemy + psycopg2; append=True → INSERT, else replace
-│   └── sqlserver_sink.py    # SQLAlchemy + pyodbc (ODBC Driver 18); append=True → INSERT, else replace
+│   ├── sqlserver_sink.py    # SQLAlchemy + pyodbc (ODBC Driver 18); append=True → INSERT, else replace
+│   ├── mongodb_sink.py      # pymongo; one collection per table; append=True → insert, else drop+insert
+│   └── redis_sink.py        # redis-py; one capped Stream (XADD) per table; append=True → add, else delete+refill
+├── api/                     # Query API — REST + GraphQL over the postgres sink
+│   ├── db.py                # engine/session factory (RCD_POSTGRES_URL, same convention as postgres_sink.py)
+│   ├── auth.py               # X-API-Key dependency shared by both REST and GraphQL
+│   ├── models.py              # SQLAlchemy models, hand-maintained for the 16 curated tables
+│   ├── schemas.py              # Pydantic response schemas (REST only) + generic Page[T]
+│   ├── queries/                 # list_/get_ per table — the ONE place filter/pagination logic lives
+│   ├── rest/                     # thin FastAPI routers calling queries/*.py
+│   ├── graphql/                   # hand-written Strawberry types/resolvers calling the same queries/*.py
+│   └── app.py                      # FastAPI app: mounts REST + GraphQL behind auth, plus /health
 └── tests/
     ├── test_referential_integrity.py
     ├── test_output_completeness.py   # fails (not skips) on a missing/empty expected table
-    └── _sink_helpers.py               # shared DB-engine helper for the two test modules above
+    ├── test_api.py                    # REST/GraphQL parity, auth, pagination, N+1 guard — real Postgres
+    └── _sink_helpers.py               # shared DB/Mongo/Redis client helpers for the test modules above
 ```
 
-Deployment-related files live outside `rcd_data/`: [DEPLOY.md](DEPLOY.md) (home-lab/Tailscale runbook), `docker-compose.yml` (`generator` + `streamer` services, both gated behind `--profile run`), `.env.example`, and `.github/workflows/validate-datasets.yml` (CI: generates + validates against every sink, including real Postgres/SQL Server service containers).
+Deployment-related files live outside `rcd_data/`: [DEPLOY.md](docs/DEPLOY.md) (home-lab/Tailscale runbook), `docker-compose.yml` (`generator` + `streamer` + `api` services, gated behind `--profile run`), `.env.example`, and `.github/workflows/validate-datasets.yml` (CI: generates + validates against every sink, including real Postgres/SQL Server/MongoDB/Redis service containers).
